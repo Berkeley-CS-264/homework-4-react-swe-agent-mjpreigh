@@ -1,0 +1,7 @@
+{
+  "astropy__astropy-7166": {
+    "model_name_or_path": "gpt-5-mini",
+    "instance_id": "astropy__astropy-7166",
+    "model_patch": ""
+  }
+}

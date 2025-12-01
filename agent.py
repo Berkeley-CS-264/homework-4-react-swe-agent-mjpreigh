@@ -28,6 +28,7 @@ class ReactAgent:
     """
 
     def __init__(self, name: str, parser: ResponseParser, llm: LLM):
+        print("here at init")
         self.name: str = name
         self.parser = parser
         self.llm = llm
@@ -56,7 +57,14 @@ class ReactAgent:
         
         TODO(student): Implement this function to add a message to the list
         """
-        raise NotImplementedError("add_message must be implemented by the student")
+        self.current_message_id += 1
+        unique_id = self.current_message_id
+        timestamp = time.time()
+        self.id_to_message[unique_id] = {"role": role, "content": content, "timestamp": timestamp, "unique_id": unique_id}
+
+        print("New message ---> time: " + timestamp + ", id: " + unique_id + ", role: " + role + ", content: " + content)
+
+        #raise NotImplementedError("add_message must be implemented by the student")
 
     def set_message_content(self, message_id: int, content: str) -> None:
         """
@@ -64,7 +72,11 @@ class ReactAgent:
         
         TODO(student): Implement this function to update a message's content
         """
-        raise NotImplementedError("set_message_content must be implemented by the student")
+        print("content before: " + self.id_to_message[message_id]["content"])
+        self.id_to_message[message_id]["content"] = content
+        print("content after: " + self.id_to_message[message_id]["content"])
+
+        #raise NotImplementedError("set_message_content must be implemented by the student")
 
     def get_context(self) -> str:
         """
@@ -72,7 +84,12 @@ class ReactAgent:
         
         TODO(student): Implement this function to build the context from the message list
         """
-        raise NotImplementedError("get_context must be implemented by the student")
+        context = ""
+        # going to append all messages with \n for now ???
+        for i in range(0, len(self.id_to_message)):
+            context = context + self.message_id_to_context(i) + "\n"
+        print("context: " + context)
+        #raise NotImplementedError("get_context must be implemented by the student")
 
     # -------------------- REQUIRED TOOLS --------------------
     def add_functions(self, tools: List[Callable]):
@@ -85,7 +102,9 @@ class ReactAgent:
         
         TODO(student): Implement this function to register tools and build tool descriptions
         """
-        raise NotImplementedError("add_functions must be implemented by the student")
+        for func in tools:
+            self.function_map[func.__name__] = func
+        #raise NotImplementedError("add_functions must be implemented by the student")
     
     def finish(self, result: str):
         """The agent must call this function with the final result when it has solved the given task. The function calls "git add -A and git diff --cached" to generate a patch and returns the patch as submission.
@@ -114,7 +133,18 @@ class ReactAgent:
         TODO(student): Implement the main ReAct loop
         """
         # Set the user task message
-        # self.set_message_content(self.user_message_id, task)
+        # (uncommented by MP)
+        self.set_message_content(self.user_message_id, task)
+        for s in range(0, max_steps + 1):
+            context = self.get_context()
+            llm_response = OpenAIModel.generate(self.id_to_message)
+            function_call = ResponseParser.parse(llm_response)
+            func = self.function_map[function_call["name"]]
+            args = function_call["arguments"]
+            execute_result = func(**args)
+            print("execute result: " + execute_result)
+            #append to list- messages i think?
+            #if finish, break and return result
         
         # Main ReAct loop
         raise NotImplementedError("run method must be implemented by the student")
