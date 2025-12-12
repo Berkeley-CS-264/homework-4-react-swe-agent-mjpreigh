@@ -1,0 +1,11 @@
+Updated makemigrations consistency check to call router.allow_migrate() with models specific to each app.
+
+Change:
+- In django/core/management/commands/makemigrations.py, the iteration over models for the consistency check now uses:
+    for model in apps.get_app_config(app_label).get_models()
+  instead of:
+    for model in apps.get_models(app_label)
+
+This ensures allow_migrate() is called with valid (app_label, model_name) pairs for each app, avoiding incorrect cross-app model combinations.
+
+No changes detected to generate a patch.

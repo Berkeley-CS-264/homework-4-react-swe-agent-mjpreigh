@@ -37,7 +37,7 @@ The agent will process SWE-bench instances and save results to the `results/` di
 After generating predictions, run SWEBench's evaluation harness to evaluate the submissions:
 
 ```bash
-python -m swebench.harness.run_evaluation \
+python3 -m swebench.harness.run_evaluation \
     --dataset_name lynnliu030/swebench-eval-subset \
     --predictions_path ./results/preds.json \
     --max_workers 8 \

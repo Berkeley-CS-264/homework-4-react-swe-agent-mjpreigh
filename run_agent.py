@@ -39,22 +39,18 @@ def process_instance(
     parser = ResponseParser()
     task = instance["problem_statement"]
     
-    print(f"Processing instance {instance_id}")
     agent = None    
     result = ""
     
     try:
         # Initialize the environment
-        print("b4 env")
         env = SWEEnvironment(instance)
-        print("aftr env")
         # Initialize the agent
-        print("b4 agent")
         agent = ReactAgent("swe-agent", parser, llm)
-        print("aftr agent")
         
         # Add environment functions to the agent
-        agent.add_functions([env.run_bash_cmd])
+        #agent.add_functions([env.run_bash_cmd])
+        agent.add_functions([env.run_bash_cmd, env.show_file, env.replace_in_file, env.search_files, env.find_references_in_file, env.show_files])
         
         # TODO(student): Add more functions here if needed
         # agent.add_functions([env.replace_in_file, env.show_file, ...])
@@ -97,7 +93,7 @@ def main(
     print(f"Loading dataset {dataset_path}, split {split}...")
     instances = list(load_dataset(dataset_path, split=split))
     # limit to 1 instance for testing
-    instances = instances[:1]
+    #instances = [instances[2]]
     print(f"Running on {len(instances)} instances...")
 
     def process_futures(futures: dict[concurrent.futures.Future, str]):

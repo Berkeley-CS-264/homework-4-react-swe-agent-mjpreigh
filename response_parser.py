@@ -40,4 +40,25 @@ DO NOT CHANGE ANY TEST! AS THEY WILL BE USED FOR EVALUATION.
         
         TODO(student): Implement this function using rfind to parse the function call
         """
-        raise NotImplementedError("parse method must be implemented by the student")
+        arguments = {}
+
+        # remove end
+        text = text[:-25]
+        # find value/arg pairs until none left
+        value_idx = text.rfind("----VALUE----")
+        arg_idx = text.rfind("----ARG----")
+        while value_idx != -1 and arg_idx != -1:
+            arg = text[arg_idx + 11:value_idx][1:-1]
+            value = text[value_idx + 13:][1:-1]
+            arguments[arg] = value
+            text = text[:arg_idx]
+            value_idx = text.rfind("----VALUE----")
+            arg_idx = text.rfind("----ARG----")
+
+        # find function call
+        func_idx = text.rfind("----BEGIN_FUNCTION_CALL----")
+        function_call = text[func_idx + 27:]
+        text = text[:func_idx]
+
+        # find thought
+        return {"thought": text, "name": function_call[1:-1], "arguments": arguments}

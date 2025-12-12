@@ -28,21 +28,18 @@ class ReactAgent:
     """
 
     def __init__(self, name: str, parser: ResponseParser, llm: LLM):
-        print("here at init")
         self.name: str = name
         self.parser = parser
         self.llm = llm
-
         # Message list storage
         self.id_to_message: List[Dict[str, Any]] = []
         self.root_message_id: int = -1
         self.current_message_id: int = -1
-
         # Registered tools
         self.function_map: Dict[str, Callable] = {}
 
         # Set up the initial structure of the history
-        # Create required root nodes and a user node (task)
+        # Create required root nodes and a user node (task)        
         self.system_message_id = self.add_message("system", "You are a Smart ReAct agent.")
         self.user_message_id = self.add_message("user", "")
         # NOTE: mandatory finish function that terminates the agent
@@ -60,11 +57,10 @@ class ReactAgent:
         self.current_message_id += 1
         unique_id = self.current_message_id
         timestamp = time.time()
-        self.id_to_message[unique_id] = {"role": role, "content": content, "timestamp": timestamp, "unique_id": unique_id}
+        self.id_to_message.append({"role": role, "content": content, "timestamp": timestamp, "unique_id": unique_id})
+        assert(len(self.id_to_message) == self.current_message_id + 1)
 
-        print("New message ---> time: " + timestamp + ", id: " + unique_id + ", role: " + role + ", content: " + content)
-
-        #raise NotImplementedError("add_message must be implemented by the student")
+        return self.current_message_id
 
     def set_message_content(self, message_id: int, content: str) -> None:
         """
@@ -72,9 +68,7 @@ class ReactAgent:
         
         TODO(student): Implement this function to update a message's content
         """
-        print("content before: " + self.id_to_message[message_id]["content"])
         self.id_to_message[message_id]["content"] = content
-        print("content after: " + self.id_to_message[message_id]["content"])
 
         #raise NotImplementedError("set_message_content must be implemented by the student")
 
@@ -88,8 +82,7 @@ class ReactAgent:
         # going to append all messages with \n for now ???
         for i in range(0, len(self.id_to_message)):
             context = context + self.message_id_to_context(i) + "\n"
-        print("context: " + context)
-        #raise NotImplementedError("get_context must be implemented by the student")
+        return context
 
     # -------------------- REQUIRED TOOLS --------------------
     def add_functions(self, tools: List[Callable]):
@@ -104,7 +97,6 @@ class ReactAgent:
         """
         for func in tools:
             self.function_map[func.__name__] = func
-        #raise NotImplementedError("add_functions must be implemented by the student")
     
     def finish(self, result: str):
         """The agent must call this function with the final result when it has solved the given task. The function calls "git add -A and git diff --cached" to generate a patch and returns the patch as submission.
@@ -132,22 +124,52 @@ class ReactAgent:
             
         TODO(student): Implement the main ReAct loop
         """
-        # Set the user task message
-        # (uncommented by MP)
-        self.set_message_content(self.user_message_id, task)
+        context = self.get_context()
+        self.set_message_content(self.user_message_id, str(self.id_to_message[self.user_message_id]['content']) + task + ", " + context)
+        print("prompt: " + str(self.id_to_message[self.user_message_id]['content']) + task + ", " + context)
         for s in range(0, max_steps + 1):
+
             context = self.get_context()
-            llm_response = OpenAIModel.generate(self.id_to_message)
-            function_call = ResponseParser.parse(llm_response)
-            func = self.function_map[function_call["name"]]
-            args = function_call["arguments"]
-            execute_result = func(**args)
-            print("execute result: " + execute_result)
-            #append to list- messages i think?
+            if len(context) > 1360000 :
+                self.id_to_message.pop(0)
+                len_messages = len(self.id_to_message)
+                last_message = self.message_id_to_context(len_messages - 1)
+                #self.id_to_message[len_messages - 1] = self.message_id_to_context(len_messages - 1)
+                self.set_message_content(len_messages - 1, last_message)
+                context = self.get_context()
+
+            llm_response = OpenAIModel.generate(self.llm, self.id_to_message)
+            print("system response: " + llm_response)
+            sys_id = self.add_message("system", llm_response)
+            
+            function_call = ResponseParser.parse(self.parser, llm_response)
+            func = ""
+            args = {}
+            try:
+                func = self.function_map[function_call["name"]]
+                args = function_call["arguments"]
+            except:
+                self.add_message("user", "You must return your responses in the required format: " + f"--- RESPONSE FORMAT ---\n{self.parser.response_format}\n")
+                continue
+            self.set_message_content(sys_id, function_call['thought'] + ". Function " + function_call['name'] + " ran with arguments " + str(function_call['arguments']))
+            #print("thought: " + function_call['thought'])
+            #print("logged: " + str(self.id_to_message[sys_id]))
+            # if function has no args just call with none
+            if len(inspect.signature(func).parameters) == 0:
+                execute_result = func()
+            else:
+                execute_result = func(**args)
+            #execute_result = func(**args)
+            if function_call["name"] == "finish":
+                return execute_result
+            #self.set_message_content(self.user_message_id, execute_result)
+            user_id = self.add_message("user", execute_result)
+            print("user response: " + execute_result)
+            if function_call["name"] == "replace_in_file":
+                self.add_message("user", "Because you have updated a file, your next step is to create a patch with the diff from the update, and finish.")
+                print("Because you have updated a file, your next step is to create a patch with the diff from the update, and finish.")
+            #print("user: " + str(self.id_to_message[user_id]))
             #if finish, break and return result
-        
-        # Main ReAct loop
-        raise NotImplementedError("run method must be implemented by the student")
 
     def message_id_to_context(self, message_id: int) -> str:
         """
@@ -167,6 +189,7 @@ class ReactAgent:
             tool_descriptions = "\n".join(tool_descriptions)
             return (
                 f"{header}{content}\n"
+                f"--- IMPORTANT NOTE ---\nIf you have a patch, return it instead of app.\n"
                 f"--- AVAILABLE TOOLS ---\n{tool_descriptions}\n\n"
                 f"--- RESPONSE FORMAT ---\n{self.parser.response_format}\n"
             )

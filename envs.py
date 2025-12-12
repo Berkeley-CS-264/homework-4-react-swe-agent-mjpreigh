@@ -67,13 +67,50 @@ class SWEEnvironment:
         """
         [Optional] Replace the content of the file from the given line to the given line with the given content
         """
-        raise NotImplementedError("replace_in_file must be implemented by the student")
+        from_line = int(from_line)
+        to_line = int(to_line)
+        cmd = f'head -n {from_line - 1} {file_path} > temp_file.txt'
+        self.run_bash_cmd(cmd)
+        cmd = f'echo {content} >> temp_file.txt'
+        self.run_bash_cmd(cmd)
+        cmd = f'tail -n +{to_line + 1} {file_path} >> temp_file.txt'
+        self.run_bash_cmd(cmd)
+        cmd = f'cat temp_file.txt > {file_path}'
+        self.run_bash_cmd(cmd)
+        return f'replaced lines {from_line} to {to_line} in {file_path} with "{content}"'
 
     def show_file(self, file_path: str) -> str:
         """
         [Optional]Show the content of the file
         """
-        raise NotImplementedError("show_file must be implemented by the student")
+        cmd = f'cat -n "{file_path}"'
+        return self.run_bash_cmd(cmd)
+    
+    def show_files(self, file_paths: list[str]) -> str:
+        """
+        Show the contents of each file in the given list of file paths
+        """
+        results = []
+        for file in file_paths:
+            results.append[f'-----FILE: "{file}"-----']
+            cmd = f'cat -n "{file}"'
+            results.append(self.run_bash_cmd(cmd))
+        return results.join("\n")
+    
+    def search_files(self, content: str) -> str:
+        """
+        Return a list of files which contain the given content string
+        """
+
+        cmd = f'grep -Rn "{content}" || true'
+        return self.run_bash_cmd(cmd)
+    
+    def find_references_in_file(self, file_path: str, content: str):
+        """
+        Return a list of all line numbers and instances in the given file where the given content appears
+        """
+        cmd = f'grep -n "{content}" {file_path}'
+        return self.run_bash_cmd(cmd)
 
 class DumbEnvironment:
     """
