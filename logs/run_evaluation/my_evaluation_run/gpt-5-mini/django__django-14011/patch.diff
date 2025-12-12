@@ -1,32 +1,19 @@
 diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
-index 14dab517c9..b9e613ad1a 100644
+index 14dab517c9..49228d625d 100644
 --- a/django/core/servers/basehttp.py
 +++ b/django/core/servers/basehttp.py
-@@ -81,6 +81,27 @@ class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
-     """A threaded version of the WSGIServer"""
-     daemon_threads = True
+@@ -79,7 +79,13 @@ class WSGIServer(simple_server.WSGIServer):
  
-+    def process_request_thread(self, request, client_address):
-+        """Handle a request in a thread and ensure DB connections are closed.
-+
-+        ThreadingMixIn.process_request spawns a new thread that calls
-+        process_request_thread. We override it to guarantee that when the
-+        request-handling thread finishes, any database connections opened
-+        by that thread are closed to avoid leaking connections that would
-+        prevent test DB teardown.
-+        """
-+        try:
-+            # Call the original implementation (finish_request + shutdown)
-+            super().process_request_thread(request, client_address)
-+        finally:
-+            # Make sure to close any DB connections opened in this thread.
-+            try:
-+                from django.db import connections
-+                connections.close_all()
-+            except Exception:
-+                # Be defensive: don't let DB close errors hide request errors.
-+                pass
-+
+ class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
+     """A threaded version of the WSGIServer"""
+-    daemon_threads = True
++    # Don't make worker threads daemonic by default. If threads are daemonic,
++    # the server won't wait for them to finish on shutdown which can lead to
++    # race conditions where database connections opened by worker threads
++    # remain open while the test teardown tries to destroy the test database.
++    # Making them non-daemonic ensures shutdown waits for request threads to
++    # complete and their cleanup code (including closing DB connections) to run.
++    daemon_threads = False
+ 
  
  class ServerHandler(simple_server.ServerHandler):
-     http_version = '1.1'

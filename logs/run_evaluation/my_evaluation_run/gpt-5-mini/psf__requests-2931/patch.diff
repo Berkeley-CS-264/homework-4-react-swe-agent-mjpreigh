@@ -1,47 +1,42 @@
-diff --git a/requests/models.py b/requests/models.py
-index 9c624d3..da9c7a9 100644
---- a/requests/models.py
-+++ b/requests/models.py
-@@ -80,7 +80,11 @@ class RequestEncodingMixin(object):
-         if parameters are supplied as a dict.
-         """
- 
--        if isinstance(data, (str, bytes)):
-+        # If data is bytes, leave it alone — don't try to coerce bytes
-+        # to native strings (which may attempt to decode using ASCII).
-+        if isinstance(data, bytes):
-+            return data
-+        if isinstance(data, str):
-             return to_native_string(data)
-         elif hasattr(data, 'read'):
-             return data
-diff --git a/test_requests.py b/test_requests.py
-index 137edc0..0d8e2f0 100755
---- a/test_requests.py
-+++ b/test_requests.py
-@@ -49,9 +49,10 @@ else:
- 
- 
- @pytest.fixture
--def httpbin(httpbin):
-+def httpbin(request):
-     # Issue #1483: Make sure the URL always has a trailing slash
--    httpbin_url = httpbin.url.rstrip('/') + '/'
-+    base_httpbin = request.getfixturevalue('httpbin')
-+    httpbin_url = base_httpbin.url.rstrip('/') + '/'
- 
-     def inner(*suffix):
-         return urljoin(httpbin_url, '/'.join(suffix))
-@@ -60,9 +61,10 @@ def httpbin(httpbin):
- 
- 
- @pytest.fixture
--def httpsbin_url(httpbin_secure):
-+def httpsbin_url(request):
-     # Issue #1483: Make sure the URL always has a trailing slash
--    httpbin_url = httpbin_secure.url.rstrip('/') + '/'
-+    base_httpbin_secure = request.getfixturevalue('httpbin_secure')
-+    httpbin_url = base_httpbin_secure.url.rstrip('/') + '/'
- 
-     def inner(*suffix):
-         return urljoin(httpbin_url, '/'.join(suffix))
+diff --git a/requests/utils.py b/requests/utils.py
+index 132cd2b..ec47d45 100644
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -689,19 +689,25 @@ def to_native_string(string, encoding='ascii'):
+     string in the native string type, encoding and decoding where necessary.
+     This assumes ASCII unless told otherwise.
+     """
+-    out = None
+-
++    # If it's already the native string type (e.g. `str` on Python 3,
++    # `unicode` on Python 2), return it unchanged.
+     if isinstance(string, builtin_str):
+-        out = string
+-    else:
+-        if is_py2:
+-            out = string.encode(encoding)
+-        else:
+-            out = string.decode(encoding)
+-
+-    return out
+-
+-
++        return string
++
++    # If this is a bytes object, do not attempt to decode it on Python 3
++    # because it may be binary data (e.g. file contents or an explicitly-
++    # encoded payload). Return bytes unchanged.
++    if isinstance(string, bytes):
++        return string
++
++    # On Python 2, non-native text types (e.g. `unicode`) should be encoded to
++    # the native `str` type.
++    if is_py2:
++        return string.encode(encoding)
++
++    # On Python 3, decode remaining objects to `str`. At this point we've
++    # already handled `bytes` above.
++    return string.decode(encoding)
+ def urldefragauth(url):
+     """
+     Given a url remove the fragment and the authentication part

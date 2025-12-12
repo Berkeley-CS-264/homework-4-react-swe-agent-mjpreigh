@@ -1,24 +1,18 @@
 diff --git a/django/forms/widgets.py b/django/forms/widgets.py
-index 40ac1d3162..dbcf2e7044 100644
+index 40ac1d3162..9845921346 100644
 --- a/django/forms/widgets.py
 +++ b/django/forms/widgets.py
-@@ -759,6 +759,19 @@ class RadioSelect(ChoiceWidget):
-     template_name = 'django/forms/widgets/radio.html'
-     option_template_name = 'django/forms/widgets/radio_option.html'
- 
-+    def format_value(self, value):
-+        """Return selected values as a list.
-+
-+        For radio widgets, don't treat None as an empty-string selection.
-+        Otherwise an unbound ModelChoiceField (value is None) will cause the
-+        blank choice ('' / '---------') to be rendered as checked, which is
-+        confusing for radio buttons because radio already has an unfilled
-+        state. Returning an empty list results in no option being selected.
-+        """
-+        if value is None:
+@@ -661,6 +661,13 @@ class ChoiceWidget(Widget):
+         """Return selected values as a list."""
+         if value is None and self.allow_multiple_selected:
+             return []
++        # For radio widgets on required fields, don't pre-select the empty
++        # value when rendering a new form (None initial). RadioSelect has an
++        # inherent unfilled state, so rendering a checked blank radio option
++        # (which happens when value is None -> [''] below) is misleading for
++        # required model fields (e.g. ForeignKey with blank=False).
++        if value is None and getattr(self, 'input_type', None) == 'radio' and getattr(self, 'is_required', False):
 +            return []
-+        return super().format_value(value)
-+
- 
- class CheckboxSelectMultiple(ChoiceWidget):
-     allow_multiple_selected = True
+         if not isinstance(value, (tuple, list)):
+             value = [value]
+         return [str(v) if v is not None else '' for v in value]

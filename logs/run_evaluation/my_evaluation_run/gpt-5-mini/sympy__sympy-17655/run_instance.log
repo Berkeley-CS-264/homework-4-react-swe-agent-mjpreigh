@@ -1,83 +1,73 @@
-2025-12-11 20:35:39,769 - INFO - Creating container for sympy__sympy-17655...
-2025-12-11 20:35:39,798 - INFO - Container for sympy__sympy-17655 created: 70d14fbec545e374dba5ccbae27438bfda1bc0b1487c7fcbf2eab79c2d5cb19e
-2025-12-11 20:35:39,850 - INFO - Container for sympy__sympy-17655 started: 70d14fbec545e374dba5ccbae27438bfda1bc0b1487c7fcbf2eab79c2d5cb19e
-2025-12-11 20:35:39,850 - INFO - Intermediate patch for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/patch.diff, now applying to container...
-2025-12-11 20:35:39,960 - INFO - >>>>> Applied Patch:
+2025-12-11 21:19:13,780 - INFO - Creating container for sympy__sympy-17655...
+2025-12-11 21:19:13,801 - INFO - Container for sympy__sympy-17655 created: 20d80b3c5fd3e51aff297713dcc7b918c9e67b24758a006109da354a293ec819
+2025-12-11 21:19:13,865 - INFO - Container for sympy__sympy-17655 started: 20d80b3c5fd3e51aff297713dcc7b918c9e67b24758a006109da354a293ec819
+2025-12-11 21:19:13,865 - INFO - Intermediate patch for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/patch.diff, now applying to container...
+2025-12-11 21:19:13,984 - INFO - >>>>> Applied Patch:
 Checking patch sympy/geometry/point.py...
 Applied patch sympy/geometry/point.py cleanly.
 
-2025-12-11 20:35:40,239 - INFO - Git diff before:
+2025-12-11 21:19:14,236 - INFO - Git diff before:
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..fab727ce90 100644
+index 7c978c47be..ad126543b0 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -213,6 +213,27 @@ def __add__(self, other):
-         sympy.geometry.point.Point.translate
- 
-         """
-+        # Handle cases where `other` is a Mul like `2*Point(...)`. The Point
-+        # constructor expects a sequence of coordinates, so trying to do
-+        # Point(2*Point(1, 1)) would raise a TypeError. Detect a Mul with a
-+        # Point factor and convert it into a Point with scaled coordinates.
-+        if getattr(other, 'is_Mul', False):
-+            # find a Point factor in the multiplication, if any
-+            point_factor = None
-+            for a in other.args:
-+                if isinstance(a, Point):
-+                    point_factor = a
-+                    break
-+            if point_factor is not None:
-+                # compute the scalar factor by multiplying the remaining args
-+                scalar = S.One
-+                for a in other.args:
-+                    if a is not point_factor:
-+                        scalar = scalar * a
-+                # scale the point's coordinates
-+                other = Point([simplify(scalar * c) for c in point_factor.args],
-+                              evaluate=False)
-+
+@@ -216,7 +216,21 @@ def __add__(self, other):
          try:
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
-2025-12-11 20:35:40,239 - INFO - Eval script for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/eval.sh; copying to container...
-2025-12-11 20:35:51,537 - INFO - Test runtime: 11.15 seconds
-2025-12-11 20:35:51,537 - INFO - Test output for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/test_output.txt
-2025-12-11 20:35:51,624 - INFO - Git diff after:
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            # Allow adding a scalar-multiplied Point like 2*Point(...)
++            # In some cases (e.g. Float * Point) SymPy builds a Mul object
++            # instead of deferring to Point.__rmul__. Detect that case
++            # here and construct the scaled Point explicitly.
++            from sympy import Mul
++            if isinstance(other, Mul):
++                pts = [a for a in other.args if isinstance(a, Point)]
++                if len(pts) == 1:
++                    factor = Mul(*[a for a in other.args if a is not pts[0]])
++                    scaled = pts[0] * factor
++                    s, o = Point._normalize_dimension(self, scaled)
++                else:
++                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            else:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+ 
+         coords = [simplify(a + b) for a, b in zip(s, o)]
+         return Point(coords, evaluate=False)
+2025-12-11 21:19:14,237 - INFO - Eval script for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/eval.sh; copying to container...
+2025-12-11 21:19:25,849 - INFO - Test runtime: 11.56 seconds
+2025-12-11 21:19:25,849 - INFO - Test output for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/test_output.txt
+2025-12-11 21:19:25,925 - INFO - Git diff after:
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..fab727ce90 100644
+index 7c978c47be..ad126543b0 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -213,6 +213,27 @@ def __add__(self, other):
-         sympy.geometry.point.Point.translate
- 
-         """
-+        # Handle cases where `other` is a Mul like `2*Point(...)`. The Point
-+        # constructor expects a sequence of coordinates, so trying to do
-+        # Point(2*Point(1, 1)) would raise a TypeError. Detect a Mul with a
-+        # Point factor and convert it into a Point with scaled coordinates.
-+        if getattr(other, 'is_Mul', False):
-+            # find a Point factor in the multiplication, if any
-+            point_factor = None
-+            for a in other.args:
-+                if isinstance(a, Point):
-+                    point_factor = a
-+                    break
-+            if point_factor is not None:
-+                # compute the scalar factor by multiplying the remaining args
-+                scalar = S.One
-+                for a in other.args:
-+                    if a is not point_factor:
-+                        scalar = scalar * a
-+                # scale the point's coordinates
-+                other = Point([simplify(scalar * c) for c in point_factor.args],
-+                              evaluate=False)
-+
+@@ -216,7 +216,21 @@ def __add__(self, other):
          try:
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
-2025-12-11 20:35:51,624 - INFO - Grading answer for sympy__sympy-17655...
-2025-12-11 20:35:51,624 - INFO - report: {'sympy__sympy-17655': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_point', 'test_point3D']}, 'PASS_TO_PASS': {'success': ['test_Point2D', 'test_issue_9214', 'test_issue_11617', 'test_transform', 'test_concyclic_doctest_bug', 'test_arguments', 'test_unit', 'test_dot', 'test__normalize_dimension'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            # Allow adding a scalar-multiplied Point like 2*Point(...)
++            # In some cases (e.g. Float * Point) SymPy builds a Mul object
++            # instead of deferring to Point.__rmul__. Detect that case
++            # here and construct the scaled Point explicitly.
++            from sympy import Mul
++            if isinstance(other, Mul):
++                pts = [a for a in other.args if isinstance(a, Point)]
++                if len(pts) == 1:
++                    factor = Mul(*[a for a in other.args if a is not pts[0]])
++                    scaled = pts[0] * factor
++                    s, o = Point._normalize_dimension(self, scaled)
++                else:
++                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            else:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+ 
+         coords = [simplify(a + b) for a, b in zip(s, o)]
+         return Point(coords, evaluate=False)
+2025-12-11 21:19:25,925 - INFO - Grading answer for sympy__sympy-17655...
+2025-12-11 21:19:25,926 - INFO - report: {'sympy__sympy-17655': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_point', 'test_point3D']}, 'PASS_TO_PASS': {'success': ['test_Point2D', 'test_issue_9214', 'test_issue_11617', 'test_transform', 'test_concyclic_doctest_bug', 'test_arguments', 'test_unit', 'test_dot', 'test__normalize_dimension'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for sympy__sympy-17655: resolved: False
-2025-12-11 20:35:51,624 - INFO - Attempting to stop container sweb.eval.sympy__sympy-17655.my_evaluation_run...
-2025-12-11 20:36:06,722 - INFO - Attempting to remove container sweb.eval.sympy__sympy-17655.my_evaluation_run...
-2025-12-11 20:36:06,736 - INFO - Container sweb.eval.sympy__sympy-17655.my_evaluation_run removed.
+2025-12-11 21:19:25,927 - INFO - Attempting to stop container sweb.eval.sympy__sympy-17655.my_evaluation_run...
+2025-12-11 21:19:41,049 - INFO - Attempting to remove container sweb.eval.sympy__sympy-17655.my_evaluation_run...
+2025-12-11 21:19:41,064 - INFO - Container sweb.eval.sympy__sympy-17655.my_evaluation_run removed.

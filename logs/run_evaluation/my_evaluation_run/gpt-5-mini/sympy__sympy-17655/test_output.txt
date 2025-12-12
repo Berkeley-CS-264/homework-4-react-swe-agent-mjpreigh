@@ -146,37 +146,32 @@ Date:   Wed Sep 10 16:33:31 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff f5e965947af2410ded92cfad987aaf45262ea434
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..fab727ce90 100644
+index 7c978c47be..ad126543b0 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -213,6 +213,27 @@ def __add__(self, other):
-         sympy.geometry.point.Point.translate
- 
-         """
-+        # Handle cases where `other` is a Mul like `2*Point(...)`. The Point
-+        # constructor expects a sequence of coordinates, so trying to do
-+        # Point(2*Point(1, 1)) would raise a TypeError. Detect a Mul with a
-+        # Point factor and convert it into a Point with scaled coordinates.
-+        if getattr(other, 'is_Mul', False):
-+            # find a Point factor in the multiplication, if any
-+            point_factor = None
-+            for a in other.args:
-+                if isinstance(a, Point):
-+                    point_factor = a
-+                    break
-+            if point_factor is not None:
-+                # compute the scalar factor by multiplying the remaining args
-+                scalar = S.One
-+                for a in other.args:
-+                    if a is not point_factor:
-+                        scalar = scalar * a
-+                # scale the point's coordinates
-+                other = Point([simplify(scalar * c) for c in point_factor.args],
-+                              evaluate=False)
-+
+@@ -216,7 +216,21 @@ def __add__(self, other):
          try:
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            # Allow adding a scalar-multiplied Point like 2*Point(...)
++            # In some cases (e.g. Float * Point) SymPy builds a Mul object
++            # instead of deferring to Point.__rmul__. Detect that case
++            # here and construct the scaled Point explicitly.
++            from sympy import Mul
++            if isinstance(other, Mul):
++                pts = [a for a in other.args if isinstance(a, Point)]
++                if len(pts) == 1:
++                    factor = Mul(*[a for a in other.args if a is not pts[0]])
++                    scaled = pts[0] * factor
++                    s, o = Point._normalize_dimension(self, scaled)
++                else:
++                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            else:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+ 
+         coords = [simplify(a + b) for a, b in zip(s, o)]
+         return Point(coords, evaluate=False)
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -329,8 +324,8 @@ architecture:       64-bit
 cache:              no
 ground types:       python 
 numpy:              None
-random seed:        15352365
-hash randomization: on (PYTHONHASHSEED=3235807051)
+random seed:        89473547
+hash randomization: on (PYTHONHASHSEED=2821218842)
 
 sympy/geometry/tests/test_point.py[12] 
 test_point E
@@ -360,7 +355,7 @@ Traceback (most recent call last):
     assert 5 * p4 == Point3D(5, 5, 5)
 TypeError: unsupported operand type(s) for *: 'int' and 'Point3D'
 
-=========== tests finished: 10 passed, 2 exceptions, in 7.84 seconds ===========
+=========== tests finished: 10 passed, 2 exceptions, in 7.99 seconds ===========
 DO *NOT* COMMIT!
 + : '>>>>> End Test Output'
 + git checkout f5e965947af2410ded92cfad987aaf45262ea434 sympy/geometry/tests/test_point.py

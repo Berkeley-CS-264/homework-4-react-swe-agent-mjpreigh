@@ -157,29 +157,23 @@ Date:   Wed Sep 10 10:41:10 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 335c9c94acf263901fb023404408880245b0c4b4
 diff --git a/django/forms/widgets.py b/django/forms/widgets.py
-index 40ac1d3162..dbcf2e7044 100644
+index 40ac1d3162..9845921346 100644
 --- a/django/forms/widgets.py
 +++ b/django/forms/widgets.py
-@@ -759,6 +759,19 @@ class RadioSelect(ChoiceWidget):
-     template_name = 'django/forms/widgets/radio.html'
-     option_template_name = 'django/forms/widgets/radio_option.html'
- 
-+    def format_value(self, value):
-+        """Return selected values as a list.
-+
-+        For radio widgets, don't treat None as an empty-string selection.
-+        Otherwise an unbound ModelChoiceField (value is None) will cause the
-+        blank choice ('' / '---------') to be rendered as checked, which is
-+        confusing for radio buttons because radio already has an unfilled
-+        state. Returning an empty list results in no option being selected.
-+        """
-+        if value is None:
+@@ -661,6 +661,13 @@ class ChoiceWidget(Widget):
+         """Return selected values as a list."""
+         if value is None and self.allow_multiple_selected:
+             return []
++        # For radio widgets on required fields, don't pre-select the empty
++        # value when rendering a new form (None initial). RadioSelect has an
++        # inherent unfilled state, so rendering a checked blank radio option
++        # (which happens when value is None -> [''] below) is misleading for
++        # required model fields (e.g. ForeignKey with blank=False).
++        if value is None and getattr(self, 'input_type', None) == 'radio' and getattr(self, 'is_required', False):
 +            return []
-+        return super().format_value(value)
-+
- 
- class CheckboxSelectMultiple(ChoiceWidget):
-     allow_multiple_selected = True
+         if not isinstance(value, (tuple, list)):
+             value = [value]
+         return [str(v) if v is not None else '' for v in value]
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -598,7 +592,7 @@ Traceback (most recent call last):
 TypeError: __init__() got an unexpected keyword argument 'blank'
 
 ======================================================================
-ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=True, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc710b38>)
+ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=True, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc61b358>)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
@@ -608,7 +602,7 @@ Traceback (most recent call last):
 TypeError: __init__() got an unexpected keyword argument 'blank'
 
 ======================================================================
-ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=False, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc710b38>)
+ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=False, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc61b358>)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
@@ -631,10 +625,10 @@ First differing element 0:
 
 First list contains 1 additional elements.
 First extra element 1:
-(<django.forms.models.ModelChoiceIteratorValue object at 0x7ffffc393b00>, 'user')
+(<django.forms.models.ModelChoiceIteratorValue object at 0x7ffffc384860>, 'user')
 
 - [('', '---------'),
--  (<django.forms.models.ModelChoiceIteratorValue object at 0x7ffffc393b00>,
+-  (<django.forms.models.ModelChoiceIteratorValue object at 0x7ffffc384860>,
 -   'user')]
 ? ^
 
@@ -643,7 +637,7 @@ First extra element 1:
 
 
 ----------------------------------------------------------------------
-Ran 169 tests in 0.306s
+Ran 169 tests in 0.334s
 
 FAILED (failures=1, errors=4)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...

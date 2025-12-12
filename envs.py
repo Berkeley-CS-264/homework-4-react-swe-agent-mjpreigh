@@ -1,3 +1,4 @@
+import ast
 from utils import get_sb_environment
 import subprocess
 import swebench
@@ -154,13 +155,23 @@ class SWEEnvironment:
     def show_files(self, file_paths: list[str]) -> str:
         """
         Show the contents of each file in the given list of file paths
+
+        Args;
+            file_paths (list[str]): a list of file paths
+
+        Returns:
+            The contents of each file in the given list
         """
+        file_paths = ast.literal_eval(file_paths)
         results = []
         for file in file_paths:
-            results.append[f'-----FILE: "{file}"-----']
-            cmd = f'cat -n "{file}"'
-            results.append(self.run_bash_cmd(cmd))
-        return "\n".join(results)
+            print("file: " + file)
+            results.append(f'-----FILE: "{file}"-----')
+            results.append(self.show_file(file))
+
+        res = "\n".join(results)
+        print("shown files: " + res)
+        return res
     
     def search_files(self, content: str) -> str:
         """

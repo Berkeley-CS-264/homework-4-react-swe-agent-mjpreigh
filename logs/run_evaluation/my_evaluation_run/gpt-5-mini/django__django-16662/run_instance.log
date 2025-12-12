@@ -1,14 +1,14 @@
-2025-12-11 20:35:27,243 - INFO - Creating container for django__django-16662...
-2025-12-11 20:35:27,265 - INFO - Container for django__django-16662 created: 5bc4e55267b3ec919b15eccdf64e6b8c75df391a46e4d3b40bac882146e9024f
-2025-12-11 20:35:27,333 - INFO - Container for django__django-16662 started: 5bc4e55267b3ec919b15eccdf64e6b8c75df391a46e4d3b40bac882146e9024f
-2025-12-11 20:35:27,333 - INFO - Intermediate patch for django__django-16662 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16662/patch.diff, now applying to container...
-2025-12-11 20:35:27,429 - INFO - >>>>> Applied Patch:
+2025-12-11 21:18:53,070 - INFO - Creating container for django__django-16662...
+2025-12-11 21:18:53,089 - INFO - Container for django__django-16662 created: 57dda01786a92112636cf2d70aff773427888950c708ed56262c8fe3d005372e
+2025-12-11 21:18:53,146 - INFO - Container for django__django-16662 started: 57dda01786a92112636cf2d70aff773427888950c708ed56262c8fe3d005372e
+2025-12-11 21:18:53,147 - INFO - Intermediate patch for django__django-16662 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16662/patch.diff, now applying to container...
+2025-12-11 21:18:53,256 - INFO - >>>>> Applied Patch:
 Checking patch django/db/migrations/writer.py...
 Applied patch django/db/migrations/writer.py cleanly.
 
-2025-12-11 20:35:27,866 - INFO - Git diff before:
+2025-12-11 21:18:53,715 - INFO - Git diff before:
 diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
-index a59f0c8dcb..b1f35fda29 100644
+index a59f0c8dcb..91c8921518 100644
 --- a/django/db/migrations/writer.py
 +++ b/django/db/migrations/writer.py
 @@ -175,7 +175,12 @@ class MigrationWriter:
@@ -16,21 +16,21 @@ index a59f0c8dcb..b1f35fda29 100644
          # Sort imports by the package / module to be imported (the part after
          # "from" in "from ... import ..." or after "import" in "import ...").
 -        sorted_imports = sorted(imports, key=lambda i: i.split()[1])
-+        # Ensure that plain module imports ("import x") come before
-+        # from-imports ("from x import y") to match Django/isort style.
++        # Within each module, place plain "import <module>" statements before
++        # "from <module> import <objects>" to comply with Django coding style
++        # and isort defaults.
 +        sorted_imports = sorted(
-+            imports,
-+            key=lambda i: (0 if i.startswith("import ") else 1, i.split()[1]),
++            imports, key=lambda i: (i.split()[1], 0 if i.startswith("import ") else 1, i)
 +        )
          items["imports"] = "\n".join(sorted_imports) + "\n" if imports else ""
          if migration_imports:
              items["imports"] += (
-2025-12-11 20:35:27,867 - INFO - Eval script for django__django-16662 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16662/eval.sh; copying to container...
-2025-12-11 20:35:32,976 - INFO - Test runtime: 5.07 seconds
-2025-12-11 20:35:32,977 - INFO - Test output for django__django-16662 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16662/test_output.txt
-2025-12-11 20:35:33,061 - INFO - Git diff after:
+2025-12-11 21:18:53,716 - INFO - Eval script for django__django-16662 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16662/eval.sh; copying to container...
+2025-12-11 21:18:58,527 - INFO - Test runtime: 4.75 seconds
+2025-12-11 21:18:58,527 - INFO - Test output for django__django-16662 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16662/test_output.txt
+2025-12-11 21:18:58,622 - INFO - Git diff after:
 diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
-index a59f0c8dcb..b1f35fda29 100644
+index a59f0c8dcb..91c8921518 100644
 --- a/django/db/migrations/writer.py
 +++ b/django/db/migrations/writer.py
 @@ -175,7 +175,12 @@ class MigrationWriter:
@@ -38,18 +38,18 @@ index a59f0c8dcb..b1f35fda29 100644
          # Sort imports by the package / module to be imported (the part after
          # "from" in "from ... import ..." or after "import" in "import ...").
 -        sorted_imports = sorted(imports, key=lambda i: i.split()[1])
-+        # Ensure that plain module imports ("import x") come before
-+        # from-imports ("from x import y") to match Django/isort style.
++        # Within each module, place plain "import <module>" statements before
++        # "from <module> import <objects>" to comply with Django coding style
++        # and isort defaults.
 +        sorted_imports = sorted(
-+            imports,
-+            key=lambda i: (0 if i.startswith("import ") else 1, i.split()[1]),
++            imports, key=lambda i: (i.split()[1], 0 if i.startswith("import ") else 1, i)
 +        )
          items["imports"] = "\n".join(sorted_imports) + "\n" if imports else ""
          if migration_imports:
              items["imports"] += (
-2025-12-11 20:35:33,061 - INFO - Grading answer for django__django-16662...
-2025-12-11 20:35:33,063 - INFO - report: {'django__django-16662': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['#24155 - Tests ordering of imports.'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_args_kwargs_signature (migrations.test_writer.OperationWriterTests.test_args_kwargs_signature)', 'test_args_signature (migrations.test_writer.OperationWriterTests.test_args_signature)', 'test_empty_signature (migrations.test_writer.OperationWriterTests.test_empty_signature)', 'test_expand_args_signature (migrations.test_writer.OperationWriterTests.test_expand_args_signature)', 'test_kwargs_signature (migrations.test_writer.OperationWriterTests.test_kwargs_signature)', 'test_multiline_args_signature (migrations.test_writer.OperationWriterTests.test_multiline_args_signature)', 'test_nested_args_signature (migrations.test_writer.OperationWriterTests.test_nested_args_signature)', 'test_nested_operation_expand_args_signature (migrations.test_writer.OperationWriterTests.test_nested_operation_expand_args_signature)', 'test_custom_operation (migrations.test_writer.WriterTests.test_custom_operation)', 'test_deconstruct_class_arguments (migrations.test_writer.WriterTests.test_deconstruct_class_arguments)', 'Test comments at top of file.', 'test_migration_path (migrations.test_writer.WriterTests.test_migration_path)', "django.db.models shouldn't be imported if unused.", 'test_register_non_serializer (migrations.test_writer.WriterTests.test_register_non_serializer)', 'test_register_serializer (migrations.test_writer.WriterTests.test_register_serializer)', 'test_serialize_builtin_types (migrations.test_writer.WriterTests.test_serialize_builtin_types)', 'test_serialize_builtins (migrations.test_writer.WriterTests.test_serialize_builtins)', 'test_serialize_choices (migrations.test_writer.WriterTests.test_serialize_choices)', 'Ticket #22943: Test serialization of class-based validators, including', 'test_serialize_collections (migrations.test_writer.WriterTests.test_serialize_collections)', 'Make sure compiled regex can be serialized.', 'test_serialize_complex_func_index (migrations.test_writer.WriterTests.test_serialize_complex_func_index)', 'test_serialize_constants (migrations.test_writer.WriterTests.test_serialize_constants)', 'test_serialize_datetime (migrations.test_writer.WriterTests.test_serialize_datetime)', 'Ticket #22679: makemigrations generates invalid code for (an empty', 'test_serialize_enum_flags (migrations.test_writer.WriterTests.test_serialize_enum_flags)', 'test_serialize_enums (migrations.test_writer.WriterTests.test_serialize_enums)', 'test_serialize_fields (migrations.test_writer.WriterTests.test_serialize_fields)', 'test_serialize_frozensets (migrations.test_writer.WriterTests.test_serialize_frozensets)', 'test_serialize_functions (migrations.test_writer.WriterTests.test_serialize_functions)', 'test_serialize_functools_partial (migrations.test_writer.WriterTests.test_serialize_functools_partial)', 'test_serialize_functools_partialmethod (migrations.test_writer.WriterTests.test_serialize_functools_partialmethod)', 'test_serialize_iterators (migrations.test_writer.WriterTests.test_serialize_iterators)', 'test_serialize_lazy_objects (migrations.test_writer.WriterTests.test_serialize_lazy_objects)', "A reference in a local scope can't be serialized.", 'test_serialize_managers (migrations.test_writer.WriterTests.test_serialize_managers)', 'test_serialize_multiline_strings (migrations.test_writer.WriterTests.test_serialize_multiline_strings)', 'test_serialize_nested_class (migrations.test_writer.WriterTests.test_serialize_nested_class)', 'test_serialize_numbers (migrations.test_writer.WriterTests.test_serialize_numbers)', 'test_serialize_path_like (migrations.test_writer.WriterTests.test_serialize_path_like)', 'test_serialize_pathlib (migrations.test_writer.WriterTests.test_serialize_pathlib)', 'test_serialize_range (migrations.test_writer.WriterTests.test_serialize_range)', 'test_serialize_set (migrations.test_writer.WriterTests.test_serialize_set)', 'test_serialize_settings (migrations.test_writer.WriterTests.test_serialize_settings)', 'test_serialize_strings (migrations.test_writer.WriterTests.test_serialize_strings)', 'test_serialize_timedelta (migrations.test_writer.WriterTests.test_serialize_timedelta)', 'test_serialize_type_model (migrations.test_writer.WriterTests.test_serialize_type_model)', 'test_serialize_type_none (migrations.test_writer.WriterTests.test_serialize_type_none)', 'An unbound method used within a class body can be serialized.', 'test_serialize_uuid (migrations.test_writer.WriterTests.test_serialize_uuid)', 'Tests serializing a simple migration.'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
-Result for django__django-16662: resolved: True
-2025-12-11 20:35:33,063 - INFO - Attempting to stop container sweb.eval.django__django-16662.my_evaluation_run...
-2025-12-11 20:35:48,186 - INFO - Attempting to remove container sweb.eval.django__django-16662.my_evaluation_run...
-2025-12-11 20:35:48,198 - INFO - Container sweb.eval.django__django-16662.my_evaluation_run removed.
+2025-12-11 21:18:58,623 - INFO - Grading answer for django__django-16662...
+2025-12-11 21:18:58,624 - INFO - report: {'django__django-16662': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['#24155 - Tests ordering of imports.']}, 'PASS_TO_PASS': {'success': ['test_args_kwargs_signature (migrations.test_writer.OperationWriterTests.test_args_kwargs_signature)', 'test_args_signature (migrations.test_writer.OperationWriterTests.test_args_signature)', 'test_empty_signature (migrations.test_writer.OperationWriterTests.test_empty_signature)', 'test_expand_args_signature (migrations.test_writer.OperationWriterTests.test_expand_args_signature)', 'test_kwargs_signature (migrations.test_writer.OperationWriterTests.test_kwargs_signature)', 'test_multiline_args_signature (migrations.test_writer.OperationWriterTests.test_multiline_args_signature)', 'test_nested_args_signature (migrations.test_writer.OperationWriterTests.test_nested_args_signature)', 'test_nested_operation_expand_args_signature (migrations.test_writer.OperationWriterTests.test_nested_operation_expand_args_signature)', 'test_custom_operation (migrations.test_writer.WriterTests.test_custom_operation)', 'test_deconstruct_class_arguments (migrations.test_writer.WriterTests.test_deconstruct_class_arguments)', 'Test comments at top of file.', 'test_migration_path (migrations.test_writer.WriterTests.test_migration_path)', "django.db.models shouldn't be imported if unused.", 'test_register_non_serializer (migrations.test_writer.WriterTests.test_register_non_serializer)', 'test_register_serializer (migrations.test_writer.WriterTests.test_register_serializer)', 'test_serialize_builtin_types (migrations.test_writer.WriterTests.test_serialize_builtin_types)', 'test_serialize_builtins (migrations.test_writer.WriterTests.test_serialize_builtins)', 'test_serialize_choices (migrations.test_writer.WriterTests.test_serialize_choices)', 'Ticket #22943: Test serialization of class-based validators, including', 'test_serialize_collections (migrations.test_writer.WriterTests.test_serialize_collections)', 'Make sure compiled regex can be serialized.', 'test_serialize_complex_func_index (migrations.test_writer.WriterTests.test_serialize_complex_func_index)', 'test_serialize_constants (migrations.test_writer.WriterTests.test_serialize_constants)', 'test_serialize_datetime (migrations.test_writer.WriterTests.test_serialize_datetime)', 'Ticket #22679: makemigrations generates invalid code for (an empty', 'test_serialize_enum_flags (migrations.test_writer.WriterTests.test_serialize_enum_flags)', 'test_serialize_enums (migrations.test_writer.WriterTests.test_serialize_enums)', 'test_serialize_fields (migrations.test_writer.WriterTests.test_serialize_fields)', 'test_serialize_frozensets (migrations.test_writer.WriterTests.test_serialize_frozensets)', 'test_serialize_functions (migrations.test_writer.WriterTests.test_serialize_functions)', 'test_serialize_functools_partial (migrations.test_writer.WriterTests.test_serialize_functools_partial)', 'test_serialize_functools_partialmethod (migrations.test_writer.WriterTests.test_serialize_functools_partialmethod)', 'test_serialize_iterators (migrations.test_writer.WriterTests.test_serialize_iterators)', 'test_serialize_lazy_objects (migrations.test_writer.WriterTests.test_serialize_lazy_objects)', "A reference in a local scope can't be serialized.", 'test_serialize_managers (migrations.test_writer.WriterTests.test_serialize_managers)', 'test_serialize_multiline_strings (migrations.test_writer.WriterTests.test_serialize_multiline_strings)', 'test_serialize_nested_class (migrations.test_writer.WriterTests.test_serialize_nested_class)', 'test_serialize_numbers (migrations.test_writer.WriterTests.test_serialize_numbers)', 'test_serialize_path_like (migrations.test_writer.WriterTests.test_serialize_path_like)', 'test_serialize_pathlib (migrations.test_writer.WriterTests.test_serialize_pathlib)', 'test_serialize_range (migrations.test_writer.WriterTests.test_serialize_range)', 'test_serialize_set (migrations.test_writer.WriterTests.test_serialize_set)', 'test_serialize_settings (migrations.test_writer.WriterTests.test_serialize_settings)', 'test_serialize_strings (migrations.test_writer.WriterTests.test_serialize_strings)', 'test_serialize_timedelta (migrations.test_writer.WriterTests.test_serialize_timedelta)', 'test_serialize_type_model (migrations.test_writer.WriterTests.test_serialize_type_model)', 'test_serialize_type_none (migrations.test_writer.WriterTests.test_serialize_type_none)', 'An unbound method used within a class body can be serialized.', 'test_serialize_uuid (migrations.test_writer.WriterTests.test_serialize_uuid)', 'Tests serializing a simple migration.'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for django__django-16662: resolved: False
+2025-12-11 21:18:58,625 - INFO - Attempting to stop container sweb.eval.django__django-16662.my_evaluation_run...
+2025-12-11 21:19:13,745 - INFO - Attempting to remove container sweb.eval.django__django-16662.my_evaluation_run...
+2025-12-11 21:19:13,757 - INFO - Container sweb.eval.django__django-16662.my_evaluation_run removed.

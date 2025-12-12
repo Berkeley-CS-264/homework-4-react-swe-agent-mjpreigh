@@ -139,7 +139,7 @@ class ReactAgent:
                 context = self.get_context()
 
             llm_response = OpenAIModel.generate(self.llm, self.id_to_message)
-            print("system response: " + llm_response)
+            print("user response: " + llm_response)
             user_id = self.add_message("user", llm_response)
             
             function_call = ResponseParser.parse(self.parser, llm_response)
@@ -151,36 +151,19 @@ class ReactAgent:
             except:
                 self.add_message("system", "You must return your responses in the required format: " + f"--- RESPONSE FORMAT ---\n{self.parser.response_format}\n")
                 continue
-            #self.set_message_content(sys_id, function_call['thought'] + ". Function " + function_call['name'] + " ran with arguments " + str(function_call['arguments']))
-            #print("thought: " + function_call['thought'])
-            #print("logged: " + str(self.id_to_message[sys_id]))
-            # if function has no args just call with none
+
             if len(inspect.signature(func).parameters) == 0:
                 execute_result = func()
             else:
                 execute_result = func(**args)
-            #execute_result = func(**args)
+
             if function_call["name"] == "finish":
                 return execute_result
             #self.set_message_content(self.user_message_id, execute_result)
             sys_id = self.add_message("system", execute_result)
+            print("system response: " + execute_result)
             self.set_message_content(sys_id, self.message_id_to_context(sys_id))
-            '''
-            tool_descriptions = []
-            for tool in self.function_map.values():
-                signature = inspect.signature(tool)
-                docstring = inspect.getdoc(tool)
-                tool_description = f"Function: {tool.__name__}{signature}\n{docstring}\n"
-                tool_descriptions.append(tool_description)
 
-            tool_descriptions = "\n".join(tool_descriptions)
-            '''
-            #print("system response: " + execute_result + f"--- AVAILABLE TOOLS ---\n{tool_descriptions}\n\n")
-            #if function_call["name"] == "replace_in_file":
-              #  self.add_message("user", "Because you have updated a file, your next step is to create a patch with the diff from the update, and finish.")
-               # print("Because you have updated a file, your next step is to create a patch with the diff from the update, and finish.")
-            #print("user: " + str(self.id_to_message[user_id]))
-            #if finish, break and return result
 
     def message_id_to_context(self, message_id: int) -> str:
         """

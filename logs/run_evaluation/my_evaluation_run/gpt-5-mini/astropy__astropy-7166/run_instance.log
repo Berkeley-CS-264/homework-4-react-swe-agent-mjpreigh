@@ -1,63 +1,147 @@
-2025-12-11 20:35:11,389 - INFO - Creating container for astropy__astropy-7166...
-2025-12-11 20:35:11,439 - INFO - Container for astropy__astropy-7166 created: 0ff37eb7f68d98cab87308a7138cc3e99b697f7cedc974531f44078d9a7df487
-2025-12-11 20:35:11,542 - INFO - Container for astropy__astropy-7166 started: 0ff37eb7f68d98cab87308a7138cc3e99b697f7cedc974531f44078d9a7df487
-2025-12-11 20:35:11,542 - INFO - Intermediate patch for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/patch.diff, now applying to container...
-2025-12-11 20:35:11,708 - INFO - >>>>> Applied Patch:
+2025-12-11 21:18:31,036 - INFO - Creating container for astropy__astropy-7166...
+2025-12-11 21:18:31,112 - INFO - Container for astropy__astropy-7166 created: 3b8348fc5b942a3f2d45523bca2b28a30e65e318164a874aeb9067458d4cae5f
+2025-12-11 21:18:31,263 - INFO - Container for astropy__astropy-7166 started: 3b8348fc5b942a3f2d45523bca2b28a30e65e318164a874aeb9067458d4cae5f
+2025-12-11 21:18:31,264 - INFO - Intermediate patch for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/patch.diff, now applying to container...
+2025-12-11 21:18:31,436 - INFO - >>>>> Applied Patch:
 Checking patch astropy/utils/misc.py...
 Applied patch astropy/utils/misc.py cleanly.
 
-2025-12-11 20:35:12,221 - INFO - Git diff before:
+2025-12-11 21:18:32,036 - INFO - Git diff before:
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..a9a0f12ee 100644
+index de3fb01d1..e22e79ed9 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -537,6 +537,19 @@ class InheritDocstrings(type):
+@@ -528,15 +528,59 @@ class InheritDocstrings(type):
+                 not key.startswith('_'))
+ 
+         for key, val in dct.items():
++            # Functions (regular methods)
+             if (inspect.isfunction(val) and
+-                is_public_member(key) and
+-                val.__doc__ is None):
++                    is_public_member(key) and
++                    val.__doc__ is None):
+                 for base in cls.__mro__[1:]:
+                     super_method = getattr(base, key, None)
+                     if super_method is not None:
                          val.__doc__ = super_method.__doc__
                          break
  
-+            # Also handle properties: inspect.isfunction returns False for
-+            # property objects, so detect them explicitly and if the property's
-+            # fget has no docstring, try to inherit it from the first base
-+            # class that defines the property.
-+            elif isinstance(val, property) and is_public_member(key):
-+                fget = val.fget
-+                if fget is not None and fget.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_prop = getattr(base, key, None)
-+                        if isinstance(super_prop, property) and super_prop.fget is not None:
-+                            fget.__doc__ = super_prop.fget.__doc__
-+                            break
++            # Properties: copy docstrings for the fget/fset/fdel from base
++            # properties if they're missing on the subclass.
++            elif (isinstance(val, property) and is_public_member(key)):
++                # Only bother if there is at least one missing docstring
++                need_fget = (val.fget is not None and val.fget.__doc__ is None)
++                need_fset = (val.fset is not None and val.fset.__doc__ is None)
++                need_fdel = (val.fdel is not None and val.fdel.__doc__ is None)
++
++                if not (need_fget or need_fset or need_fdel):
++                    continue
++
++                for base in cls.__mro__[1:]:
++                    base_prop = getattr(base, key, None)
++                    if not isinstance(base_prop, property):
++                        continue
++
++                    # Copy fget, fset, fdel docstrings individually if missing
++                    if need_fget and base_prop.fget is not None:
++                        try:
++                            val.fget.__doc__ = base_prop.fget.__doc__
++                        except Exception:
++                            # Be defensive: if for some reason we can't set it,
++                            # just skip copying.
++                            pass
++                        need_fget = False
++
++                    if need_fset and base_prop.fset is not None:
++                        try:
++                            val.fset.__doc__ = base_prop.fset.__doc__
++                        except Exception:
++                            pass
++                        need_fset = False
++
++                    if need_fdel and base_prop.fdel is not None:
++                        try:
++                            val.fdel.__doc__ = base_prop.fdel.__doc__
++                        except Exception:
++                            pass
++                        need_fdel = False
++
++                    if not (need_fget or need_fset or need_fdel):
++                        break
 +
          super().__init__(name, bases, dct)
-2025-12-11 20:35:12,221 - INFO - Eval script for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/eval.sh; copying to container...
-2025-12-11 20:35:18,216 - INFO - Test runtime: 5.92 seconds
-2025-12-11 20:35:18,217 - INFO - Test output for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/test_output.txt
-2025-12-11 20:35:18,344 - INFO - Git diff after:
+2025-12-11 21:18:32,037 - INFO - Eval script for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/eval.sh; copying to container...
+2025-12-11 21:18:37,787 - INFO - Test runtime: 5.69 seconds
+2025-12-11 21:18:37,787 - INFO - Test output for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/test_output.txt
+2025-12-11 21:18:37,913 - INFO - Git diff after:
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..a9a0f12ee 100644
+index de3fb01d1..e22e79ed9 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -537,6 +537,19 @@ class InheritDocstrings(type):
+@@ -528,15 +528,59 @@ class InheritDocstrings(type):
+                 not key.startswith('_'))
+ 
+         for key, val in dct.items():
++            # Functions (regular methods)
+             if (inspect.isfunction(val) and
+-                is_public_member(key) and
+-                val.__doc__ is None):
++                    is_public_member(key) and
++                    val.__doc__ is None):
+                 for base in cls.__mro__[1:]:
+                     super_method = getattr(base, key, None)
+                     if super_method is not None:
                          val.__doc__ = super_method.__doc__
                          break
  
-+            # Also handle properties: inspect.isfunction returns False for
-+            # property objects, so detect them explicitly and if the property's
-+            # fget has no docstring, try to inherit it from the first base
-+            # class that defines the property.
-+            elif isinstance(val, property) and is_public_member(key):
-+                fget = val.fget
-+                if fget is not None and fget.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_prop = getattr(base, key, None)
-+                        if isinstance(super_prop, property) and super_prop.fget is not None:
-+                            fget.__doc__ = super_prop.fget.__doc__
-+                            break
++            # Properties: copy docstrings for the fget/fset/fdel from base
++            # properties if they're missing on the subclass.
++            elif (isinstance(val, property) and is_public_member(key)):
++                # Only bother if there is at least one missing docstring
++                need_fget = (val.fget is not None and val.fget.__doc__ is None)
++                need_fset = (val.fset is not None and val.fset.__doc__ is None)
++                need_fdel = (val.fdel is not None and val.fdel.__doc__ is None)
++
++                if not (need_fget or need_fset or need_fdel):
++                    continue
++
++                for base in cls.__mro__[1:]:
++                    base_prop = getattr(base, key, None)
++                    if not isinstance(base_prop, property):
++                        continue
++
++                    # Copy fget, fset, fdel docstrings individually if missing
++                    if need_fget and base_prop.fget is not None:
++                        try:
++                            val.fget.__doc__ = base_prop.fget.__doc__
++                        except Exception:
++                            # Be defensive: if for some reason we can't set it,
++                            # just skip copying.
++                            pass
++                        need_fget = False
++
++                    if need_fset and base_prop.fset is not None:
++                        try:
++                            val.fset.__doc__ = base_prop.fset.__doc__
++                        except Exception:
++                            pass
++                        need_fset = False
++
++                    if need_fdel and base_prop.fdel is not None:
++                        try:
++                            val.fdel.__doc__ = base_prop.fdel.__doc__
++                        except Exception:
++                            pass
++                        need_fdel = False
++
++                    if not (need_fget or need_fset or need_fdel):
++                        break
 +
          super().__init__(name, bases, dct)
-2025-12-11 20:35:18,344 - INFO - Grading answer for astropy__astropy-7166...
-2025-12-11 20:35:18,345 - INFO - report: {'astropy__astropy-7166': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/utils/tests/test_misc.py::test_inherit_docstrings']}, 'PASS_TO_PASS': {'success': ['astropy/utils/tests/test_misc.py::test_isiterable', 'astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure', 'astropy/utils/tests/test_misc.py::test_skip_hidden', 'astropy/utils/tests/test_misc.py::test_JsonCustomEncoder', 'astropy/utils/tests/test_misc.py::test_check_broadcast', 'astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+2025-12-11 21:18:37,913 - INFO - Grading answer for astropy__astropy-7166...
+2025-12-11 21:18:37,914 - INFO - report: {'astropy__astropy-7166': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/utils/tests/test_misc.py::test_inherit_docstrings']}, 'PASS_TO_PASS': {'success': ['astropy/utils/tests/test_misc.py::test_isiterable', 'astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure', 'astropy/utils/tests/test_misc.py::test_skip_hidden', 'astropy/utils/tests/test_misc.py::test_JsonCustomEncoder', 'astropy/utils/tests/test_misc.py::test_check_broadcast', 'astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for astropy__astropy-7166: resolved: False
-2025-12-11 20:35:18,346 - INFO - Attempting to stop container sweb.eval.astropy__astropy-7166.my_evaluation_run...
-2025-12-11 20:35:33,551 - INFO - Attempting to remove container sweb.eval.astropy__astropy-7166.my_evaluation_run...
-2025-12-11 20:35:33,563 - INFO - Container sweb.eval.astropy__astropy-7166.my_evaluation_run removed.
+2025-12-11 21:18:37,914 - INFO - Attempting to stop container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-11 21:18:53,040 - INFO - Attempting to remove container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-11 21:18:53,050 - INFO - Container sweb.eval.astropy__astropy-7166.my_evaluation_run removed.

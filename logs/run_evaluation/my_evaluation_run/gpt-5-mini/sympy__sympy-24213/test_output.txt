@@ -146,18 +146,32 @@ Date:   Wed Sep 10 16:54:54 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff e8c22f6eac7314be8d92590bfff92ced79ee03e2
 diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
-index a436880c4b..e046f5fc98 100644
+index a436880c4b..2ddaa465a7 100644
 --- a/sympy/physics/units/unitsystem.py
 +++ b/sympy/physics/units/unitsystem.py
-@@ -175,7 +175,10 @@ def _collect_factor_and_dimension(self, expr):
+@@ -172,10 +172,22 @@ def _collect_factor_and_dimension(self, expr):
+             return factor ** exp_factor, dim ** (exp_factor * exp_dim)
+         elif isinstance(expr, Add):
+             factor, dim = self._collect_factor_and_dimension(expr.args[0])
++            # allow addition of dimensionally equivalent (but not necessarily
++            # identical) dimensions, e.g. acceleration*time and velocity
++            try:
++                ds = self.get_dimension_system()
++            except Exception:
++                ds = None
              for addend in expr.args[1:]:
-                 addend_factor, addend_dim = \
-                     self._collect_factor_and_dimension(addend)
+-                addend_factor, addend_dim = \
+-                    self._collect_factor_and_dimension(addend)
 -                if dim != addend_dim:
-+                # Accept addition when dimensions are equivalent (e.g.
-+                # acceleration*time and velocity) even if their Dimension
-+                # expressions are not syntactically identical.
-+                if not self.get_dimension_system().equivalent_dims(dim, addend_dim):
++                addend_factor, addend_dim = self._collect_factor_and_dimension(addend)
++                compatible = (dim == addend_dim)
++                if not compatible and ds is not None:
++                    # use the dimension system's equivalence test if available
++                    try:
++                        compatible = ds.equivalent_dims(dim, addend_dim)
++                    except Exception:
++                        compatible = False
++                if not compatible:
                      raise ValueError(
                          'Dimension of "{}" is {}, '
                          'but it should be {}'.format(
@@ -313,8 +327,8 @@ architecture:       64-bit
 cache:              no
 ground types:       python 
 numpy:              None
-random seed:        7534545
-hash randomization: on (PYTHONHASHSEED=944589574)
+random seed:        34890626
+hash randomization: on (PYTHONHASHSEED=2595610074)
 
 sympy/physics/units/tests/test_quantities.py[34] 
 test_str_repr ok
@@ -353,7 +367,7 @@ test_prefixed_property ok
 test_physics_constant ok                                                    [OK]
 
 
-======== tests finished: 33 passed, 1 expected to fail, in 1.12 seconds ========
+======== tests finished: 33 passed, 1 expected to fail, in 1.18 seconds ========
 + : '>>>>> End Test Output'
 + git checkout e8c22f6eac7314be8d92590bfff92ced79ee03e2 sympy/physics/units/tests/test_quantities.py
 Updated 1 path from b86b9b19fd

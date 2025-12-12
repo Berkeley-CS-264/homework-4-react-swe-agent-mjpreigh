@@ -1,3 +1,21 @@
-Added minimal torch.nn.Module stub to doc/source/conf.py to ensure Sphinx shows "Bases: torch.nn.Module" when torch is mocked or absent. If you need the same change applied to a different conf.py path (e.g. docs/conf.py or doc/conf.py), tell me the target and I'll produce the patch for that location.
-
-No changes detected to generate a patch.
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index 87707d48f..caae459c1 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -82,6 +82,16 @@ def get_type_hints(obj: Any, globalns: Dict = None, localns: Dict = None) -> Dic
+     from sphinx.util.inspect import safe_getattr  # lazy loading
+ 
+     try:
++        # If this is a mocked object created by autodoc.mock, it may provide a
++        # human-friendly display name in __display_name__.  Use that to avoid
++        # producing results such as "torch.nn." when the qualname is empty.
++        display_name = getattr(cls, "__display_name__", None)
++        if display_name and isinstance(display_name, str):
++            # __display_name__ is stored as "module.ClassName" for mocked
++            # classes (see sphinx.ext.autodoc.mock._make_subclass).  Use it
++            # directly to form the :py:class: role text.
++            return ':py:class:`%s`' % display_name
++
+         return typing.get_type_hints(obj, globalns, localns)
+     except NameError:
+         # Failed to evaluate ForwardRef (maybe TYPE_CHECKING)

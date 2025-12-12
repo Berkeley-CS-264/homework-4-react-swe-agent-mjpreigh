@@ -136,6 +136,7 @@ Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
 	modified:   sphinx/domains/cpp.py
+	modified:   sphinx/util/cfamily.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -230,77 +231,109 @@ index a427d5493..978e3d8e0 100644
  
  extras_require = {
 diff --git a/sphinx/domains/cpp.py b/sphinx/domains/cpp.py
-index fe52d881d..b830de01f 100644
+index fe52d881d..acf26b840 100644
 --- a/sphinx/domains/cpp.py
 +++ b/sphinx/domains/cpp.py
-@@ -882,6 +882,29 @@ class ASTCharLiteral(ASTLiteral):
-         signode.append(nodes.Text(txt, txt))
- 
- 
-+class ASTUserDefinedLiteral(ASTLiteral):
-+    # Represents a literal (number, string or char) that has a user-defined
-+    # literal suffix attached (e.g. 42_km, "foo"_s, 'a'_x).
-+    def __init__(self, base: ASTLiteral, identifier: ASTIdentifier) -> None:
-+        self.base = base
-+        self.identifier = identifier
-+
-+    def _stringify(self, transform: StringifyTransform) -> str:
-+        # No space between base literal and suffix
-+        return transform(self.base) + transform(self.identifier)
-+
-+    def get_id(self, version: int) -> str:
-+        # Use a composed id: base id + marker + identifier id.
-+        base_id = self.base.get_id(version)
-+        return base_id + 'li' + self.identifier.get_id(version)
-+
-+    def describe_signature(self, signode: TextElement, mode: str,
-+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
-+        # Render base literal then suffix without space.
-+        self.base.describe_signature(signode, mode, env, symbol)
-+        signode.append(nodes.Text(str(self.identifier)))
-+
-+
- class ASTThisLiteral(ASTExpression):
-     def _stringify(self, transform: StringifyTransform) -> str:
-         return "this"
-@@ -4664,10 +4687,22 @@ class DefinitionParser(BaseParser):
+@@ -4662,20 +4662,55 @@ class DefinitionParser(BaseParser):
+                       integer_literal_re, octal_literal_re]:
+             pos = self.pos
              if self.match(regex):
++                # consume standard single-letter suffixes like u, U, l, L, f, F
                  while self.current_char in 'uUlLfF':
                      self.pos += 1
-+                # If an identifier directly follows the literal (no whitespace),
-+                # treat it as a user-defined literal suffix.
-+                pos_after = self.pos
++                # consume optional user-defined-literal suffix (identifier-like)
++                # e.g. 6.626e-34q_J  or 1q_s
++                curpos = self.pos
 +                if self.match(identifier_re):
-+                    ident = ASTIdentifier(self.matched_text)
-+                    base = ASTNumberLiteral(self.definition[pos:pos_after])
-+                    return ASTUserDefinedLiteral(base, ident)
++                    # matched identifier suffix already advanced self.pos
++                    pass
++                else:
++                    # no identifier suffix, restore pos
++                    self.pos = curpos
                  return ASTNumberLiteral(self.definition[pos:self.pos])
  
          string = self._parse_string()
          if string is not None:
-+            # Check for UDL suffix directly following the string literal.
-+            pos_after = self.pos
+-            return ASTStringLiteral(string)
++            # try to consume an optional user-defined-literal suffix right after
++            # the string literal (e.g. "foo"s)
++            curpos = self.pos
 +            if self.match(identifier_re):
-+                ident = ASTIdentifier(self.matched_text)
-+                return ASTUserDefinedLiteral(ASTStringLiteral(string), ident)
-             return ASTStringLiteral(string)
++                suffix = self.matched_text
++                return ASTStringLiteral(string + suffix)
++            else:
++                # no suffix
++                self.pos = curpos
++                return ASTStringLiteral(string)
  
          # character-literal
-@@ -4675,7 +4710,13 @@ class DefinitionParser(BaseParser):
+         if self.match(char_literal_re):
              prefix = self.last_match.group(1)  # may be None when no prefix
              data = self.last_match.group(2)
++            # allow an optional UDL suffix after the character literal,
++            # e.g. 'c'_udl
++            curpos = self.pos
++            suffix = ''
++            if self.match(identifier_re):
++                suffix = self.matched_text
++            else:
++                self.pos = curpos
              try:
 -                return ASTCharLiteral(prefix, data)
-+                base_char = ASTCharLiteral(prefix, data)
-+                # If an identifier directly follows the char literal, treat as UDL.
-+                pos_after = self.pos
-+                if self.match(identifier_re):
-+                    ident = ASTIdentifier(self.matched_text)
-+                    return ASTUserDefinedLiteral(base_char, ident)
-+                return base_char
++                if suffix:
++                    # return a generic ASTStringLiteral-like token including the suffix
++                    # so that downstream consumers see the full literal token text.
++                    # Use the original substring from definition to include prefix/quotes.
++                    start_pos = self.last_match.start()
++                    full = self.definition[start_pos:self.pos]
++                    return ASTStringLiteral(full)
++                else:
++                    return ASTCharLiteral(prefix, data)
              except UnicodeDecodeError as e:
                  self.fail("Can not handle character literal. Internal error was: %s" % e)
              except UnsupportedMultiCharacterCharLiteral:
+diff --git a/sphinx/util/cfamily.py b/sphinx/util/cfamily.py
+index 790a492a5..bf219d0e0 100644
+--- a/sphinx/util/cfamily.py
++++ b/sphinx/util/cfamily.py
+@@ -68,6 +68,37 @@ char_literal_re = re.compile(r'''(?x)
+ ''')
+ 
+ 
++
++
++# user-defined literal suffix (simple approximation)
++# valid suffixes are either an identifier, or one or more identifier parts
++# joined by '_' as commonly used in UDLs (e.g. q_J). We allow an optional
++# leading single underscore as well (implementation-level).
++_udl_suffix_re = r'(?:[a-zA-Z_][a-zA-Z0-9_]*(?:_[a-zA-Z0-9_]+)*)'
++
++# Helpers: extend literal regexes to accept optional UDL suffixes.
++# We keep the original regexes for matching bare literals, but also allow
++# an optional suffix that starts with an identifier (both are used).
++
++integer_literal_with_udl_re = re.compile(r'(' + integer_literal_re.pattern + r')' +
++                                         r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++octal_literal_with_udl_re = re.compile(r'(' + octal_literal_re.pattern + r')' +
++                                       r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++hex_literal_with_udl_re = re.compile(r'(' + hex_literal_re.pattern + r')' +
++                                     r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++binary_literal_with_udl_re = re.compile(r'(' + binary_literal_re.pattern + r')' +
++                                        r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++float_literal_with_udl_re = re.compile(r'(' + float_literal_re.pattern + r')' +
++                                      r'(?:(?:' + _udl_suffix_re + r')\b)?',
++                                      re.X)
++
++char_literal_with_udl_re = re.compile(r'(' + char_literal_re.pattern + r')' +
++                                      r'(?:(?:' + _udl_suffix_re + r')\b)?',
++                                      re.X)
+ def verify_description_mode(mode: str) -> None:
+     if mode not in ('lastIsName', 'noneIsName', 'markType', 'markName', 'param'):
+         raise Exception("Description mode '%s' is invalid." % mode)
 diff --git a/tox.ini b/tox.ini
 index d9f040544..bf39854b6 100644
 --- a/tox.ini
@@ -582,11 +615,11 @@ tests/test_domain_cpp.py:38: in _check
     ast = parse(name, input)
 tests/test_domain_cpp.py:29: in parse
     parser.assert_end()
-sphinx/util/cfamily.py:348: in assert_end
+sphinx/util/cfamily.py:379: in assert_end
     self.fail('Expected end of definition.')
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <sphinx.domains.cpp.DefinitionParser object at 0x7ffffc815f70>
+self = <sphinx.domains.cpp.DefinitionParser object at 0x7ffffc7efc10>
 msg = 'Expected end of definition.'
 
     def fail(self, msg: str) -> None:
@@ -639,7 +672,7 @@ E           Invalid C++ declaration: Expected ']' in end of postfix expression. 
 E             template<> C<a[5_udl]>
 E             ----------------^
 
-sphinx/util/cfamily.py:279: DefinitionError
+sphinx/util/cfamily.py:310: DefinitionError
 =============================== warnings summary ===============================
 sphinx/util/docutils.py:45
   /testbed/sphinx/util/docutils.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
@@ -661,6 +694,14 @@ sphinx/directives/patches.py:15
   /testbed/sphinx/directives/patches.py:15: DeprecationWarning: The `docutils.parsers.rst.directive.html` module will be removed in Docutils 2.0. Since Docutils 0.18, the "Meta" node is defined in `docutils.parsers.rst.directives.misc`.
     from docutils.parsers.rst.directives import images, html, tables
 
+sphinx/util/cfamily.py:95
+  /testbed/sphinx/util/cfamily.py:95: DeprecationWarning: Flags not at the start of the expression '((?x)\n    [+-]?(\n   ' (truncated) but at position 1
+    float_literal_with_udl_re = re.compile(r'(' + float_literal_re.pattern + r')' +
+
+sphinx/util/cfamily.py:99
+  /testbed/sphinx/util/cfamily.py:99: DeprecationWarning: Flags not at the start of the expression '((?x)\n    ((?:u8)|u|' (truncated) but at position 1
+    char_literal_with_udl_re = re.compile(r'(' + char_literal_re.pattern + r')' +
+
 tests/test_domain_cpp.py: 826 warnings
   /testbed/sphinx/domains/cpp.py:838: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text(txt, txt))
@@ -681,21 +722,21 @@ tests/test_domain_cpp.py::test_member_definitions
 tests/test_domain_cpp.py::test_member_definitions
 tests/test_domain_cpp.py::test_member_definitions
 tests/test_domain_cpp.py::test_member_definitions
-  /testbed/sphinx/domains/cpp.py:2306: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
+  /testbed/sphinx/domains/cpp.py:2283: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text(' : ', ' : '))
 
 tests/test_domain_cpp.py::test_class_definitions
 tests/test_domain_cpp.py::test_class_definitions
-  /testbed/sphinx/domains/cpp.py:994: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
+  /testbed/sphinx/domains/cpp.py:971: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text('(', '('))
 
 tests/test_domain_cpp.py::test_class_definitions
 tests/test_domain_cpp.py::test_class_definitions
-  /testbed/sphinx/domains/cpp.py:996: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
+  /testbed/sphinx/domains/cpp.py:973: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text(')', ')'))
 
 tests/test_domain_cpp.py: 18 warnings
-  /testbed/sphinx/util/cfamily.py:135: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
+  /testbed/sphinx/util/cfamily.py:166: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text(txt, txt))
 
 tests/test_domain_cpp.py::test_attributes
@@ -706,12 +747,12 @@ tests/test_domain_cpp.py::test_attributes
 tests/test_domain_cpp.py::test_attributes
 tests/test_domain_cpp.py::test_attributes
 tests/test_domain_cpp.py::test_attributes
-  /testbed/sphinx/util/cfamily.py:169: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
+  /testbed/sphinx/util/cfamily.py:200: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text(txt, txt))
 
 tests/test_domain_cpp.py::test_attributes
 tests/test_domain_cpp.py::test_attributes
-  /testbed/sphinx/util/cfamily.py:182: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
+  /testbed/sphinx/util/cfamily.py:213: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text(self.id, self.id))
 
 tests/test_domain_cpp.py::test_attributes
@@ -722,7 +763,7 @@ tests/test_domain_cpp.py::test_attributes
 tests/test_domain_cpp.py::test_attributes
 tests/test_domain_cpp.py::test_attributes
 tests/test_domain_cpp.py::test_attributes
-  /testbed/sphinx/util/cfamily.py:197: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
+  /testbed/sphinx/util/cfamily.py:228: DeprecationWarning: nodes.Text: initialization argument "rawsource" is ignored and will be removed in Docutils 2.0.
     signode.append(nodes.Text(txt, txt))
 
 tests/test_domain_cpp.py: 65 warnings
@@ -834,7 +875,7 @@ tests/test_domain_cpp.py: 648 warnings
     option = self.option_class(*args, **kwargs)
 
 tests/test_domain_cpp.py: 117 warnings
-  /testbed/sphinx/domains/cpp.py:6809: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+  /testbed/sphinx/domains/cpp.py:6803: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
     for node in self.document.traverse(AliasNode):
 
 tests/test_domain_cpp.py: 117 warnings
@@ -2237,31 +2278,31 @@ WARNING: cpp:var targets a union (RolesTargetsWarn::Union).[39;49;00m
 [91m/tmp/pytest-of-root/pytest-0/domain-cpp/roles2.rst:5: WARNING: cpp:func targets a class (A).[39;49;00m
 
 ============================= slowest 25 durations =============================
-0.48s call     tests/test_domain_cpp.py::test_expressions
+0.55s call     tests/test_domain_cpp.py::test_expressions
+0.33s call     tests/test_domain_cpp.py::test_xref_consistency
+0.32s call     tests/test_domain_cpp.py::test_build_domain_cpp_semicolon
 0.31s call     tests/test_domain_cpp.py::test_build_domain_cpp_multi_decl_lookup
-0.31s call     tests/test_domain_cpp.py::test_xref_consistency
-0.31s call     tests/test_domain_cpp.py::test_build_domain_cpp_semicolon
-0.30s call     tests/test_domain_cpp.py::test_build_domain_cpp_backslash_ok
-0.30s call     tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parentheses_is_False
-0.22s call     tests/test_domain_cpp.py::test_build_domain_cpp_misuse_of_roles
-0.21s call     tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parentheses_is_True
-0.21s call     tests/test_domain_cpp.py::test_build_domain_cpp_anon_dup_decl
+0.29s call     tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parentheses_is_False
+0.28s call     tests/test_domain_cpp.py::test_build_domain_cpp_backslash_ok
+0.20s call     tests/test_domain_cpp.py::test_build_domain_cpp_anon_dup_decl
+0.20s call     tests/test_domain_cpp.py::test_build_domain_cpp_misuse_of_roles
 0.20s call     tests/test_domain_cpp.py::test_build_domain_cpp_warn_template_param_qualified_name
+0.19s call     tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parentheses_is_True
 0.17s setup    tests/test_domain_cpp.py::test_build_domain_cpp_multi_decl_lookup
 0.07s call     tests/test_domain_cpp.py::test_function_definitions
 0.03s call     tests/test_domain_cpp.py::test_templates
-0.03s call     tests/test_domain_cpp.py::test_fundamental_types
+0.02s call     tests/test_domain_cpp.py::test_fundamental_types
 0.02s call     tests/test_domain_cpp.py::test_type_definitions
 0.02s call     tests/test_domain_cpp.py::test_operators
 0.02s call     tests/test_domain_cpp.py::test_initializers
 0.01s call     tests/test_domain_cpp.py::test_class_definitions
+0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_semicolon
 0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_warn_template_param_qualified_name
-0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_backslash_ok
+0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_misuse_of_roles
 0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parentheses_is_False
 0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parentheses_is_True
-0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_semicolon
 0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_anon_dup_decl
-0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_misuse_of_roles
+0.01s setup    tests/test_domain_cpp.py::test_build_domain_cpp_backslash_ok
 =========================== short test summary info ============================
 PASSED tests/test_domain_cpp.py::test_fundamental_types
 PASSED tests/test_domain_cpp.py::test_type_definitions
@@ -2288,10 +2329,10 @@ PASSED tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parenth
 PASSED tests/test_domain_cpp.py::test_build_domain_cpp_with_add_function_parentheses_is_False
 PASSED tests/test_domain_cpp.py::test_xref_consistency
 FAILED tests/test_domain_cpp.py::test_expressions - sphinx.util.cfamily.Defin...
-================= 1 failed, 24 passed, 6261 warnings in 3.54s ==================
-py39: exit 1 (4.08 seconds) /testbed> pytest -rA --durations 25 tests/test_domain_cpp.py pid=77
-  py39: FAIL code 1 (4.11=setup[0.02]+cmd[4.08] seconds)
-  evaluation failed :( (4.19 seconds)
+================= 1 failed, 24 passed, 6263 warnings in 3.55s ==================
+py39: exit 1 (4.18 seconds) /testbed> pytest -rA --durations 25 tests/test_domain_cpp.py pid=77
+  py39: FAIL code 1 (4.21=setup[0.03]+cmd[4.18] seconds)
+  evaluation failed :( (4.32 seconds)
 + : '>>>>> End Test Output'
 + git checkout 2e506c5ab457cba743bb47eb5b8c8eb9dd51d23d tests/test_domain_cpp.py
 Updated 1 path from e3c9d6e97

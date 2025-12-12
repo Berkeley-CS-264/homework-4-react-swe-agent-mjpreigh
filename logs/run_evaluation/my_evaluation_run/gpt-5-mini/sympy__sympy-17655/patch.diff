@@ -1,32 +1,27 @@
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..fab727ce90 100644
+index 7c978c47be..ad126543b0 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -213,6 +213,27 @@ def __add__(self, other):
-         sympy.geometry.point.Point.translate
- 
-         """
-+        # Handle cases where `other` is a Mul like `2*Point(...)`. The Point
-+        # constructor expects a sequence of coordinates, so trying to do
-+        # Point(2*Point(1, 1)) would raise a TypeError. Detect a Mul with a
-+        # Point factor and convert it into a Point with scaled coordinates.
-+        if getattr(other, 'is_Mul', False):
-+            # find a Point factor in the multiplication, if any
-+            point_factor = None
-+            for a in other.args:
-+                if isinstance(a, Point):
-+                    point_factor = a
-+                    break
-+            if point_factor is not None:
-+                # compute the scalar factor by multiplying the remaining args
-+                scalar = S.One
-+                for a in other.args:
-+                    if a is not point_factor:
-+                        scalar = scalar * a
-+                # scale the point's coordinates
-+                other = Point([simplify(scalar * c) for c in point_factor.args],
-+                              evaluate=False)
-+
+@@ -216,7 +216,21 @@ def __add__(self, other):
          try:
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            # Allow adding a scalar-multiplied Point like 2*Point(...)
++            # In some cases (e.g. Float * Point) SymPy builds a Mul object
++            # instead of deferring to Point.__rmul__. Detect that case
++            # here and construct the scaled Point explicitly.
++            from sympy import Mul
++            if isinstance(other, Mul):
++                pts = [a for a in other.args if isinstance(a, Point)]
++                if len(pts) == 1:
++                    factor = Mul(*[a for a in other.args if a is not pts[0]])
++                    scaled = pts[0] * factor
++                    s, o = Point._normalize_dimension(self, scaled)
++                else:
++                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            else:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+ 
+         coords = [simplify(a + b) for a, b in zip(s, o)]
+         return Point(coords, evaluate=False)

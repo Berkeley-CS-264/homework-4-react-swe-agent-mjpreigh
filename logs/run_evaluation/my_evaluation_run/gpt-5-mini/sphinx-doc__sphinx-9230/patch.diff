@@ -1,25 +1,28 @@
-diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
-index 3a3367ebe..4a8d55e2d 100644
---- a/sphinx/util/docfields.py
-+++ b/sphinx/util/docfields.py
-@@ -297,13 +297,17 @@ class DocFieldTransformer:
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index d8cb75a5f..4d2e0c7b2 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -266,8 +266,21 @@ class GoogleDocstring:
+         if parse_type:
+             match = _google_typed_arg_regex.match(before)
+             if match:
+-                _name = match.group(1).strip()
+-                _type = match.group(2)
++                # Normal form: "name(type)"
++                # But also handle the variant "type(...) name" where the
++                # regex can match the leading "type(...)" leaving a trailing
++                # token which actually is the parameter name. In that case,
++                # prefer interpreting the leading parenthesized expression
++                # as the type and the trailing token as the name.
++                endpos = match.end()
++                trailing = before[endpos:].strip()
++                if trailing:
++                    # leading parenthesized portion is the type; trailing is name
++                    _type = before[:endpos].strip()
++                    _name = trailing
++                else:
++                    _name = match.group(1).strip()
++                    _type = match.group(2)
  
-             # also support syntax like ``:param type name:``
-             if typedesc.is_typed:
-+                # support syntax like ``:param type name:`` where the type
-+                # itself may contain whitespace (for example "dict(str, str)"),
-+                # so split from the right to get the argument name as the
-+                # last token and treat the rest as the type.
-                 try:
--                    argtype, argname = fieldarg.split(None, 1)
-+                    argtype, argname = fieldarg.rsplit(None, 1)
-                 except ValueError:
-+                    # couldn't split into type and name; leave as-is
-                     pass
-                 else:
--                    types.setdefault(typename, {})[argname] = \
--                        [nodes.Text(argtype)]
-+                    types.setdefault(typename, {})[argname] = [nodes.Text(argtype)]
-                     fieldarg = argname
+         _name = self._escape_args_and_kwargs(_name)
  
-             translatable_content = nodes.inline(field_body.rawsource,

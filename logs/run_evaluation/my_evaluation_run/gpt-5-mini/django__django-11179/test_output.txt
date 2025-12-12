@@ -157,16 +157,16 @@ Date:   Wed Sep 10 09:53:58 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 19fc6376ce67d01ca37a91ef2f55ef769f50513a
 diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
-index 92fe4affb9..4ee408e0bb 100644
+index 92fe4affb9..7f530c3dd6 100644
 --- a/django/db/models/deletion.py
 +++ b/django/db/models/deletion.py
 @@ -277,6 +277,9 @@ class Collector:
              if self.can_fast_delete(instance):
                  with transaction.mark_for_rollback_on_error():
                      count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-+                # Ensure the instance PK is cleared after deletion so the in-memory
-+                # object does not still appear to have a primary key.
-+                setattr(instance, model._meta.pk.attname, None)
++                    # Clear the primary key on the Python instance since it no longer
++                    # refers to a row in the database.
++                    setattr(instance, model._meta.pk.attname, None)
                  return count, {model._meta.label: count}
  
          with transaction.atomic(using=self.using, savepoint=False):
@@ -358,7 +358,7 @@ test_setnull_from_parent (delete.tests.OnDeleteTests) ... ok
 test_setvalue (delete.tests.OnDeleteTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 42 tests in 0.459s
+Ran 42 tests in 0.474s
 
 OK (skipped=1)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...

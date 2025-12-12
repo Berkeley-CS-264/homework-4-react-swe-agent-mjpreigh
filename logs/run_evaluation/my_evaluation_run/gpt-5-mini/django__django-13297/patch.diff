@@ -1,36 +1,20 @@
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..b7ea74c9c9 100644
+index ea5baca08d..38b51694df 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -24,12 +24,29 @@ class ContextMixin:
-     extra_context = None
+@@ -160,7 +160,14 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
+         # RemovedInDjango40Warning: when the deprecation ends, replace with:
+         #   context = self.get_context_data()
+         context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
+-        context = self.get_context_data(**context_kwargs)
++        # Pass the real URL kwargs to get_context_data to avoid passing
++        # SimpleLazyObject instances into user code (e.g. view filtering).
++        context = self.get_context_data(**kwargs)
++        # Ensure the template context still contains the deprecation-wrapping
++        # SimpleLazyObject values for URL kwargs, unless the view explicitly
++        # provided a value for that key in get_context_data().
++        for key, value in context_kwargs.items():
++            context.setdefault(key, value)
+         return self.render_to_response(context)
  
-     def get_context_data(self, **kwargs):
-+        # Force evaluation of any SimpleLazyObject values in kwargs so that
-+        # callers (and template code) receive concrete values rather than
-+        # lazy proxy objects. This avoids surprising failures when those
-+        # values are used in places that don't accept lazy objects
-+        # (for example, as parameters to database lookups).
-+        for k, v in list(kwargs.items()):
-+            if isinstance(v, SimpleLazyObject):
-+                # Access an attribute to force evaluation of the lazy object.
-+                # getattr triggers the evaluation of the wrapper.
-+                try:
-+                    _ = getattr(v, '__class__')
-+                except Exception:
-+                    # If attribute access raises, fall back to converting to str()
-+                    # which will also force evaluation.
-+                    evaluated = str(v)
-+                else:
-+                    evaluated = v
-+                kwargs[k] = evaluated
-+
-         kwargs.setdefault('view', self)
-         if self.extra_context is not None:
-             kwargs.update(self.extra_context)
-         return kwargs
--
--
- class View:
-     """
-     Intentionally simple parent class for all views. Only implements
+ 

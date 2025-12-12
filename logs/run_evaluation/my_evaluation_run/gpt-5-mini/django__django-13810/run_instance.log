@@ -1,26 +1,27 @@
-2025-12-11 20:35:11,388 - INFO - Creating container for django__django-13810...
-2025-12-11 20:35:11,458 - INFO - Container for django__django-13810 created: 111b1892d65dff1b95a3cdcf07ce4c93ef5d59654879b1f154169babaffe4a70
-2025-12-11 20:35:11,583 - INFO - Container for django__django-13810 started: 111b1892d65dff1b95a3cdcf07ce4c93ef5d59654879b1f154169babaffe4a70
-2025-12-11 20:35:11,584 - INFO - Intermediate patch for django__django-13810 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-13810/patch.diff, now applying to container...
-2025-12-11 20:35:11,761 - INFO - >>>>> Applied Patch:
+2025-12-11 21:34:28,076 - INFO - Creating container for django__django-13810...
+2025-12-11 21:34:28,104 - INFO - Container for django__django-13810 created: 9e0148264c03e371bf514fe0ef859fd3c78e5a6cd011ce2bbb9df49b314e970a
+2025-12-11 21:34:28,176 - INFO - Container for django__django-13810 started: 9e0148264c03e371bf514fe0ef859fd3c78e5a6cd011ce2bbb9df49b314e970a
+2025-12-11 21:34:28,177 - INFO - Intermediate patch for django__django-13810 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-13810/patch.diff, now applying to container...
+2025-12-11 21:34:28,297 - INFO - >>>>> Applied Patch:
 Checking patch django/core/handlers/base.py...
 Applied patch django/core/handlers/base.py cleanly.
 
-2025-12-11 20:35:12,407 - INFO - Git diff before:
+2025-12-11 21:34:28,752 - INFO - Git diff before:
 diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
-index 8e8c3da06a..7dbea191e0 100644
+index 8e8c3da06a..8833f35201 100644
 --- a/django/core/handlers/base.py
 +++ b/django/core/handlers/base.py
-@@ -50,12 +50,15 @@ class BaseHandler:
+@@ -50,12 +50,16 @@ class BaseHandler:
              else:
                  middleware_is_async = middleware_can_async
              try:
 -                # Adapt handler, if needed.
 -                handler = self.adapt_method_mode(
-+                # Adapt handler, if needed. Do not overwrite the current
-+                # handler until the middleware has been instantiated
-+                # successfully. If the middleware raises MiddlewareNotUsed we
-+                # must not "poison" the handler for subsequent middleware.
++                # Adapt handler for passing into the middleware, if needed.
++                # Do not overwrite `handler` until the middleware has been
++                # instantiated successfully. If the middleware raises
++                # MiddlewareNotUsed during initialization, we must not mutate
++                # the handler for subsequent middleware.
 +                adapted_handler = self.adapt_method_mode(
                      middleware_is_async, handler, handler_is_async,
                      debug=settings.DEBUG, name='middleware %s' % middleware_path,
@@ -30,229 +31,25 @@ index 8e8c3da06a..7dbea191e0 100644
              except MiddlewareNotUsed as exc:
                  if settings.DEBUG:
                      if str(exc):
-@@ -85,6 +88,7 @@ class BaseHandler:
-                     self.adapt_method_mode(False, mw_instance.process_exception),
-                 )
- 
-+            # Only update the handler after successful middleware instantiation.
-             handler = convert_exception_to_response(mw_instance)
-             handler_is_async = middleware_is_async
- 
-@@ -155,194 +159,5 @@ class BaseHandler:
-             )
-         return response
- 
--    def _get_response(self, request):
--        """
--        Resolve and call the view, then apply view, exception, and
--        template_response middleware. This method is everything that happens
--        inside the request/response middleware.
--        """
--        response = None
--        callback, callback_args, callback_kwargs = self.resolve_request(request)
--
--        # Apply view middleware
--        for middleware_method in self._view_middleware:
--            response = middleware_method(request, callback, callback_args, callback_kwargs)
--            if response:
--                break
--
--        if response is None:
--            wrapped_callback = self.make_view_atomic(callback)
--            # If it is an asynchronous view, run it in a subthread.
--            if asyncio.iscoroutinefunction(wrapped_callback):
--                wrapped_callback = async_to_sync(wrapped_callback)
--            try:
--                response = wrapped_callback(request, *callback_args, **callback_kwargs)
--            except Exception as e:
--                response = self.process_exception_by_middleware(e, request)
--                if response is None:
--                    raise
--
--        # Complain if the view returned None (a common error).
--        self.check_response(response, callback)
--
--        # If the response supports deferred rendering, apply template
--        # response middleware and then render the response
--        if hasattr(response, 'render') and callable(response.render):
--            for middleware_method in self._template_response_middleware:
--                response = middleware_method(request, response)
--                # Complain if the template response middleware returned None (a common error).
--                self.check_response(
--                    response,
--                    middleware_method,
--                    name='%s.process_template_response' % (
--                        middleware_method.__self__.__class__.__name__,
--                    )
--                )
--            try:
--                response = response.render()
--            except Exception as e:
--                response = self.process_exception_by_middleware(e, request)
--                if response is None:
--                    raise
--
--        return response
--
--    async def _get_response_async(self, request):
--        """
--        Resolve and call the view, then apply view, exception, and
--        template_response middleware. This method is everything that happens
--        inside the request/response middleware.
--        """
--        response = None
--        callback, callback_args, callback_kwargs = self.resolve_request(request)
--
--        # Apply view middleware.
--        for middleware_method in self._view_middleware:
--            response = await middleware_method(request, callback, callback_args, callback_kwargs)
--            if response:
--                break
--
--        if response is None:
--            wrapped_callback = self.make_view_atomic(callback)
--            # If it is a synchronous view, run it in a subthread
--            if not asyncio.iscoroutinefunction(wrapped_callback):
--                wrapped_callback = sync_to_async(wrapped_callback, thread_sensitive=True)
--            try:
--                response = await wrapped_callback(request, *callback_args, **callback_kwargs)
--            except Exception as e:
--                response = await sync_to_async(
--                    self.process_exception_by_middleware,
--                    thread_sensitive=True,
--                )(e, request)
--                if response is None:
--                    raise
--
--        # Complain if the view returned None or an uncalled coroutine.
--        self.check_response(response, callback)
--
--        # If the response supports deferred rendering, apply template
--        # response middleware and then render the response
--        if hasattr(response, 'render') and callable(response.render):
--            for middleware_method in self._template_response_middleware:
--                response = await middleware_method(request, response)
--                # Complain if the template response middleware returned None or
--                # an uncalled coroutine.
--                self.check_response(
--                    response,
--                    middleware_method,
--                    name='%s.process_template_response' % (
--                        middleware_method.__self__.__class__.__name__,
--                    )
--                )
--            try:
--                if asyncio.iscoroutinefunction(response.render):
--                    response = await response.render()
--                else:
--                    response = await sync_to_async(response.render, thread_sensitive=True)()
--            except Exception as e:
--                response = await sync_to_async(
--                    self.process_exception_by_middleware,
--                    thread_sensitive=True,
--                )(e, request)
--                if response is None:
--                    raise
--
--        # Make sure the response is not a coroutine
--        if asyncio.iscoroutine(response):
--            raise RuntimeError('Response is still a coroutine.')
--        return response
--
--    def resolve_request(self, request):
--        """
--        Retrieve/set the urlconf for the request. Return the view resolved,
--        with its args and kwargs.
--        """
--        # Work out the resolver.
--        if hasattr(request, 'urlconf'):
--            urlconf = request.urlconf
--            set_urlconf(urlconf)
--            resolver = get_resolver(urlconf)
--        else:
--            resolver = get_resolver()
--        # Resolve the view, and assign the match object back to the request.
--        resolver_match = resolver.resolve(request.path_info)
--        request.resolver_match = resolver_match
--        return resolver_match
--
--    def check_response(self, response, callback, name=None):
--        """
--        Raise an error if the view returned None or an uncalled coroutine.
--        """
--        if not(response is None or asyncio.iscoroutine(response)):
--            return
--        if not name:
--            if isinstance(callback, types.FunctionType):  # FBV
--                name = 'The view %s.%s' % (callback.__module__, callback.__name__)
--            else:  # CBV
--                name = 'The view %s.%s.__call__' % (
--                    callback.__module__,
--                    callback.__class__.__name__,
--                )
--        if response is None:
--            raise ValueError(
--                "%s didn't return an HttpResponse object. It returned None "
--                "instead." % name
--            )
--        elif asyncio.iscoroutine(response):
--            raise ValueError(
--                "%s didn't return an HttpResponse object. It returned an "
--                "unawaited coroutine instead. You may need to add an 'await' "
--                "into your view." % name
--            )
--
--    # Other utility methods.
--
--    def make_view_atomic(self, view):
--        non_atomic_requests = getattr(view, '_non_atomic_requests', set())
--        for db in connections.all():
--            if db.settings_dict['ATOMIC_REQUESTS'] and db.alias not in non_atomic_requests:
--                if asyncio.iscoroutinefunction(view):
--                    raise RuntimeError(
--                        'You cannot use ATOMIC_REQUESTS with async views.'
--                    )
--                view = transaction.atomic(using=db.alias)(view)
--        return view
--
--    def process_exception_by_middleware(self, exception, request):
--        """
--        Pass the exception to the exception middleware. If no middleware
--        return a response for this exception, return None.
--        """
--        for middleware_method in self._exception_middleware:
--            response = middleware_method(request, exception)
--            if response:
--                return response
--        return None
--
--
--def reset_urlconf(sender, **kwargs):
--    """Reset the URLconf after each request is finished."""
--    set_urlconf(None)
--
--
--request_finished.connect(reset_urlconf)
-+    # The rest of the class is not required for this patch and can be
-+    # provided by the original Django implementation.
-2025-12-11 20:35:12,408 - INFO - Eval script for django__django-13810 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-13810/eval.sh; copying to container...
-2025-12-11 20:35:24,167 - INFO - Test runtime: 11.71 seconds
-2025-12-11 20:35:24,168 - INFO - Test output for django__django-13810 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-13810/test_output.txt
-2025-12-11 20:35:24,258 - INFO - Git diff after:
+2025-12-11 21:34:28,753 - INFO - Eval script for django__django-13810 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-13810/eval.sh; copying to container...
+2025-12-11 21:34:38,486 - INFO - Test runtime: 9.69 seconds
+2025-12-11 21:34:38,486 - INFO - Test output for django__django-13810 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-13810/test_output.txt
+2025-12-11 21:34:38,574 - INFO - Git diff after:
 diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
-index 8e8c3da06a..7dbea191e0 100644
+index 8e8c3da06a..8833f35201 100644
 --- a/django/core/handlers/base.py
 +++ b/django/core/handlers/base.py
-@@ -50,12 +50,15 @@ class BaseHandler:
+@@ -50,12 +50,16 @@ class BaseHandler:
              else:
                  middleware_is_async = middleware_can_async
              try:
 -                # Adapt handler, if needed.
 -                handler = self.adapt_method_mode(
-+                # Adapt handler, if needed. Do not overwrite the current
-+                # handler until the middleware has been instantiated
-+                # successfully. If the middleware raises MiddlewareNotUsed we
-+                # must not "poison" the handler for subsequent middleware.
++                # Adapt handler for passing into the middleware, if needed.
++                # Do not overwrite `handler` until the middleware has been
++                # instantiated successfully. If the middleware raises
++                # MiddlewareNotUsed during initialization, we must not mutate
++                # the handler for subsequent middleware.
 +                adapted_handler = self.adapt_method_mode(
                      middleware_is_async, handler, handler_is_async,
                      debug=settings.DEBUG, name='middleware %s' % middleware_path,
@@ -262,214 +59,9 @@ index 8e8c3da06a..7dbea191e0 100644
              except MiddlewareNotUsed as exc:
                  if settings.DEBUG:
                      if str(exc):
-@@ -85,6 +88,7 @@ class BaseHandler:
-                     self.adapt_method_mode(False, mw_instance.process_exception),
-                 )
- 
-+            # Only update the handler after successful middleware instantiation.
-             handler = convert_exception_to_response(mw_instance)
-             handler_is_async = middleware_is_async
- 
-@@ -155,194 +159,5 @@ class BaseHandler:
-             )
-         return response
- 
--    def _get_response(self, request):
--        """
--        Resolve and call the view, then apply view, exception, and
--        template_response middleware. This method is everything that happens
--        inside the request/response middleware.
--        """
--        response = None
--        callback, callback_args, callback_kwargs = self.resolve_request(request)
--
--        # Apply view middleware
--        for middleware_method in self._view_middleware:
--            response = middleware_method(request, callback, callback_args, callback_kwargs)
--            if response:
--                break
--
--        if response is None:
--            wrapped_callback = self.make_view_atomic(callback)
--            # If it is an asynchronous view, run it in a subthread.
--            if asyncio.iscoroutinefunction(wrapped_callback):
--                wrapped_callback = async_to_sync(wrapped_callback)
--            try:
--                response = wrapped_callback(request, *callback_args, **callback_kwargs)
--            except Exception as e:
--                response = self.process_exception_by_middleware(e, request)
--                if response is None:
--                    raise
--
--        # Complain if the view returned None (a common error).
--        self.check_response(response, callback)
--
--        # If the response supports deferred rendering, apply template
--        # response middleware and then render the response
--        if hasattr(response, 'render') and callable(response.render):
--            for middleware_method in self._template_response_middleware:
--                response = middleware_method(request, response)
--                # Complain if the template response middleware returned None (a common error).
--                self.check_response(
--                    response,
--                    middleware_method,
--                    name='%s.process_template_response' % (
--                        middleware_method.__self__.__class__.__name__,
--                    )
--                )
--            try:
--                response = response.render()
--            except Exception as e:
--                response = self.process_exception_by_middleware(e, request)
--                if response is None:
--                    raise
--
--        return response
--
--    async def _get_response_async(self, request):
--        """
--        Resolve and call the view, then apply view, exception, and
--        template_response middleware. This method is everything that happens
--        inside the request/response middleware.
--        """
--        response = None
--        callback, callback_args, callback_kwargs = self.resolve_request(request)
--
--        # Apply view middleware.
--        for middleware_method in self._view_middleware:
--            response = await middleware_method(request, callback, callback_args, callback_kwargs)
--            if response:
--                break
--
--        if response is None:
--            wrapped_callback = self.make_view_atomic(callback)
--            # If it is a synchronous view, run it in a subthread
--            if not asyncio.iscoroutinefunction(wrapped_callback):
--                wrapped_callback = sync_to_async(wrapped_callback, thread_sensitive=True)
--            try:
--                response = await wrapped_callback(request, *callback_args, **callback_kwargs)
--            except Exception as e:
--                response = await sync_to_async(
--                    self.process_exception_by_middleware,
--                    thread_sensitive=True,
--                )(e, request)
--                if response is None:
--                    raise
--
--        # Complain if the view returned None or an uncalled coroutine.
--        self.check_response(response, callback)
--
--        # If the response supports deferred rendering, apply template
--        # response middleware and then render the response
--        if hasattr(response, 'render') and callable(response.render):
--            for middleware_method in self._template_response_middleware:
--                response = await middleware_method(request, response)
--                # Complain if the template response middleware returned None or
--                # an uncalled coroutine.
--                self.check_response(
--                    response,
--                    middleware_method,
--                    name='%s.process_template_response' % (
--                        middleware_method.__self__.__class__.__name__,
--                    )
--                )
--            try:
--                if asyncio.iscoroutinefunction(response.render):
--                    response = await response.render()
--                else:
--                    response = await sync_to_async(response.render, thread_sensitive=True)()
--            except Exception as e:
--                response = await sync_to_async(
--                    self.process_exception_by_middleware,
--                    thread_sensitive=True,
--                )(e, request)
--                if response is None:
--                    raise
--
--        # Make sure the response is not a coroutine
--        if asyncio.iscoroutine(response):
--            raise RuntimeError('Response is still a coroutine.')
--        return response
--
--    def resolve_request(self, request):
--        """
--        Retrieve/set the urlconf for the request. Return the view resolved,
--        with its args and kwargs.
--        """
--        # Work out the resolver.
--        if hasattr(request, 'urlconf'):
--            urlconf = request.urlconf
--            set_urlconf(urlconf)
--            resolver = get_resolver(urlconf)
--        else:
--            resolver = get_resolver()
--        # Resolve the view, and assign the match object back to the request.
--        resolver_match = resolver.resolve(request.path_info)
--        request.resolver_match = resolver_match
--        return resolver_match
--
--    def check_response(self, response, callback, name=None):
--        """
--        Raise an error if the view returned None or an uncalled coroutine.
--        """
--        if not(response is None or asyncio.iscoroutine(response)):
--            return
--        if not name:
--            if isinstance(callback, types.FunctionType):  # FBV
--                name = 'The view %s.%s' % (callback.__module__, callback.__name__)
--            else:  # CBV
--                name = 'The view %s.%s.__call__' % (
--                    callback.__module__,
--                    callback.__class__.__name__,
--                )
--        if response is None:
--            raise ValueError(
--                "%s didn't return an HttpResponse object. It returned None "
--                "instead." % name
--            )
--        elif asyncio.iscoroutine(response):
--            raise ValueError(
--                "%s didn't return an HttpResponse object. It returned an "
--                "unawaited coroutine instead. You may need to add an 'await' "
--                "into your view." % name
--            )
--
--    # Other utility methods.
--
--    def make_view_atomic(self, view):
--        non_atomic_requests = getattr(view, '_non_atomic_requests', set())
--        for db in connections.all():
--            if db.settings_dict['ATOMIC_REQUESTS'] and db.alias not in non_atomic_requests:
--                if asyncio.iscoroutinefunction(view):
--                    raise RuntimeError(
--                        'You cannot use ATOMIC_REQUESTS with async views.'
--                    )
--                view = transaction.atomic(using=db.alias)(view)
--        return view
--
--    def process_exception_by_middleware(self, exception, request):
--        """
--        Pass the exception to the exception middleware. If no middleware
--        return a response for this exception, return None.
--        """
--        for middleware_method in self._exception_middleware:
--            response = middleware_method(request, exception)
--            if response:
--                return response
--        return None
--
--
--def reset_urlconf(sender, **kwargs):
--    """Reset the URLconf after each request is finished."""
--    set_urlconf(None)
--
--
--request_finished.connect(reset_urlconf)
-+    # The rest of the class is not required for this patch and can be
-+    # provided by the original Django implementation.
-2025-12-11 20:35:24,258 - INFO - Grading answer for django__django-13810...
-2025-12-11 20:35:24,262 - INFO - report: {'django__django-13810': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_async_and_sync_middleware_chain_async_call (middleware_exceptions.tests.MiddlewareNotUsedTests)']}, 'PASS_TO_PASS': {'success': ['test_missing_root_urlconf (middleware_exceptions.tests.RootUrlconfTests)', 'test_raise_exception (middleware_exceptions.tests.MiddlewareNotUsedTests)'], 'failure': ['test_do_not_log_when_debug_is_false (middleware_exceptions.tests.MiddlewareNotUsedTests)', 'test_log (middleware_exceptions.tests.MiddlewareNotUsedTests)', 'test_log_custom_message (middleware_exceptions.tests.MiddlewareNotUsedTests)', 'test_exception_in_middleware_converted_before_prior_middleware (middleware_exceptions.tests.MiddlewareTests)', 'test_exception_in_render_passed_to_process_exception (middleware_exceptions.tests.MiddlewareTests)', 'test_process_template_response (middleware_exceptions.tests.MiddlewareTests)', 'test_process_template_response_returns_none (middleware_exceptions.tests.MiddlewareTests)', 'test_process_view_return_none (middleware_exceptions.tests.MiddlewareTests)', 'test_process_view_return_response (middleware_exceptions.tests.MiddlewareTests)', 'test_response_from_process_exception_short_circuits_remainder (middleware_exceptions.tests.MiddlewareTests)', 'test_response_from_process_exception_when_return_response (middleware_exceptions.tests.MiddlewareTests)', 'test_templateresponse_from_process_view_passed_to_process_template_response (middleware_exceptions.tests.MiddlewareTests)', 'test_templateresponse_from_process_view_rendered (middleware_exceptions.tests.MiddlewareTests)', 'test_view_exception_converted_before_middleware (middleware_exceptions.tests.MiddlewareTests)', 'test_view_exception_handled_by_process_exception (middleware_exceptions.tests.MiddlewareTests)', 'test_async_and_sync_middleware_async_call (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_async_and_sync_middleware_sync_call (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_async_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_async_middleware_async (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_not_sync_or_async_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_sync_decorated_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_sync_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_sync_middleware_async (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_exception_in_async_render_passed_to_process_exception (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_exception_in_render_passed_to_process_exception (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_process_template_response (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_process_template_response_returns_none (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_process_view_return_response (middleware_exceptions.tests.AsyncMiddlewareTests)']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
-Result for django__django-13810: resolved: False
-2025-12-11 20:35:24,263 - INFO - Attempting to stop container sweb.eval.django__django-13810.my_evaluation_run...
-2025-12-11 20:35:39,397 - INFO - Attempting to remove container sweb.eval.django__django-13810.my_evaluation_run...
-2025-12-11 20:35:39,412 - INFO - Container sweb.eval.django__django-13810.my_evaluation_run removed.
+2025-12-11 21:34:38,574 - INFO - Grading answer for django__django-13810...
+2025-12-11 21:34:38,575 - INFO - report: {'django__django-13810': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_async_and_sync_middleware_chain_async_call (middleware_exceptions.tests.MiddlewareNotUsedTests)'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_missing_root_urlconf (middleware_exceptions.tests.RootUrlconfTests)', 'test_do_not_log_when_debug_is_false (middleware_exceptions.tests.MiddlewareNotUsedTests)', 'test_log (middleware_exceptions.tests.MiddlewareNotUsedTests)', 'test_log_custom_message (middleware_exceptions.tests.MiddlewareNotUsedTests)', 'test_raise_exception (middleware_exceptions.tests.MiddlewareNotUsedTests)', 'test_exception_in_middleware_converted_before_prior_middleware (middleware_exceptions.tests.MiddlewareTests)', 'test_exception_in_render_passed_to_process_exception (middleware_exceptions.tests.MiddlewareTests)', 'test_process_template_response (middleware_exceptions.tests.MiddlewareTests)', 'test_process_template_response_returns_none (middleware_exceptions.tests.MiddlewareTests)', 'test_process_view_return_none (middleware_exceptions.tests.MiddlewareTests)', 'test_process_view_return_response (middleware_exceptions.tests.MiddlewareTests)', 'test_response_from_process_exception_short_circuits_remainder (middleware_exceptions.tests.MiddlewareTests)', 'test_response_from_process_exception_when_return_response (middleware_exceptions.tests.MiddlewareTests)', 'test_templateresponse_from_process_view_passed_to_process_template_response (middleware_exceptions.tests.MiddlewareTests)', 'test_templateresponse_from_process_view_rendered (middleware_exceptions.tests.MiddlewareTests)', 'test_view_exception_converted_before_middleware (middleware_exceptions.tests.MiddlewareTests)', 'test_view_exception_handled_by_process_exception (middleware_exceptions.tests.MiddlewareTests)', 'test_async_and_sync_middleware_async_call (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_async_and_sync_middleware_sync_call (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_async_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_async_middleware_async (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_not_sync_or_async_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_sync_decorated_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_sync_middleware (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_sync_middleware_async (middleware_exceptions.tests.MiddlewareSyncAsyncTests)', 'test_exception_in_async_render_passed_to_process_exception (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_exception_in_render_passed_to_process_exception (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_process_template_response (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_process_template_response_returns_none (middleware_exceptions.tests.AsyncMiddlewareTests)', 'test_process_view_return_response (middleware_exceptions.tests.AsyncMiddlewareTests)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for django__django-13810: resolved: True
+2025-12-11 21:34:38,576 - INFO - Attempting to stop container sweb.eval.django__django-13810.my_evaluation_run...
+2025-12-11 21:34:53,701 - INFO - Attempting to remove container sweb.eval.django__django-13810.my_evaluation_run...
+2025-12-11 21:34:53,713 - INFO - Container sweb.eval.django__django-13810.my_evaluation_run removed.

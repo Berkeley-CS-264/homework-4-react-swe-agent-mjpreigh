@@ -135,7 +135,6 @@ On branch main
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   docs/howto/deployment/checklist.txt
 	modified:   docs/ref/settings.txt
 
 no changes added to commit (use "git add" and/or "git commit -a")
@@ -146,50 +145,37 @@ Date:   Wed Sep 10 13:33:54 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff 9b224579875e30203d079cc2fee83b116d98eb78
-diff --git a/docs/howto/deployment/checklist.txt b/docs/howto/deployment/checklist.txt
-index 75c9735e86..24af79e74c 100644
---- a/docs/howto/deployment/checklist.txt
-+++ b/docs/howto/deployment/checklist.txt
-@@ -69,8 +69,12 @@ If rotating secret keys, you may use :setting:`SECRET_KEY_FALLBACKS`::
-         os.environ["OLD_SECRET_KEY"],
-     ]
- 
--Ensure that old secret keys are removed from ``SECRET_KEY_FALLBACKS`` in a
--timely manner.
-+Be aware that not every API consults :setting:`SECRET_KEY_FALLBACKS`. Some
-+parts of Django (for example the session authentication hash) depend only
-+on :setting:`SECRET_KEY` and will be invalidated if you change the key.
-+Remove old secret keys from ``SECRET_KEY_FALLBACKS`` only after you are
-+confident that values depending on them have expired or been rotated, and
-+plan for possible user logout when rotating keys.
- 
- :setting:`DEBUG`
- ----------------
 diff --git a/docs/ref/settings.txt b/docs/ref/settings.txt
-index 41387886c0..7b12494861 100644
+index 41387886c0..48accd33f2 100644
 --- a/docs/ref/settings.txt
 +++ b/docs/ref/settings.txt
-@@ -2302,9 +2302,20 @@ A list of fallback secret keys for a particular Django installation. These are
- used to allow rotation of the ``SECRET_KEY``.
- 
+@@ -2304,7 +2304,28 @@ used to allow rotation of the ``SECRET_KEY``.
  In order to rotate your secret keys, set a new ``SECRET_KEY`` and move the
--previous value to the beginning of ``SECRET_KEY_FALLBACKS``. Then remove the
--old values from the end of the ``SECRET_KEY_FALLBACKS`` when you are ready to
+ previous value to the beginning of ``SECRET_KEY_FALLBACKS``. Then remove the
+ old values from the end of the ``SECRET_KEY_FALLBACKS`` when you are ready to
 -expire the sessions, password reset tokens, and so on, that make use of them.
-+previous value to ``SECRET_KEY_FALLBACKS`` temporarily so that the signing
-+framework can validate values signed with the previous key. Note that the
-+signing framework (``django.core.signing``, the :class:`~django.core.signing.Signer` and
-+``TimestampSigner``, and the cookie signer used by session/cookie signing)
-+uses the current ``SECRET_KEY`` for signing and will consult ``SECRET_KEY_FALLBACKS``
-+when validating signatures. However, some APIs (for example
-+:meth:`~django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash`) call
-+``salted_hmac`` without passing an explicit secret. Those APIs rely only on
-+``settings.SECRET_KEY`` and do not consult ``SECRET_KEY_FALLBACKS``; rotating
-+``SECRET_KEY`` may therefore invalidate values produced by those APIs
-+(for example, existing session authentication hashes) even if the old key
-+is present in ``SECRET_KEY_FALLBACKS``. Remove old values from
-+``SECRET_KEY_FALLBACKS`` only when you are sure the pieces of your
-+application that rely on them have expired or been rotated.
++expire the signed values that make use of them.
++
++.. note::
++
++    Not all APIs that use :setting:`SECRET_KEY` will automatically try the
++    values in :setting:`SECRET_KEY_FALLBACKS`. The signing framework
++    (``django.core.signing.Signer`` / ``TimestampSigner`` and the cookie
++    signer built from :func:`django.core.signing.get_cookie_signer`) will
++    validate signed values using fallback keys when provided. Some token
++    generators (for example
++    :class:`django.contrib.auth.tokens.PasswordResetTokenGenerator`) also
++    explicitly try secret fallbacks when verifying tokens.
++
++    However, other code paths do not use fallback keys. In particular,
++    :meth:`django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash`
++    calls :func:`django.utils.crypto.salted_hmac` without passing an explicit
++    secret, and therefore uses the current :setting:`SECRET_KEY` only and
++    does not attempt any values from :setting:`SECRET_KEY_FALLBACKS`. If your
++    session backend or authentication flow relies on that hash, rotating
++    :setting:`SECRET_KEY` may log users out even if the old key is present in
++    :setting:`SECRET_KEY_FALLBACKS`. Review the specific code paths you rely
++    on when rotating keys.
  
  .. note::
  
@@ -332,8 +318,8 @@ Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/l
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-5.0.dev20250910133354-0.editable-py3-none-any.whl size=27433 sha256=ab83b884b04c7aec7e3bc9c33a4fa0604ac757ba564970330a3279636ccd6ca6
-  Stored in directory: /tmp/pip-ephem-wheel-cache-dx9kptei/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+  Created wheel for Django: filename=django-5.0.dev20250910133354-0.editable-py3-none-any.whl size=27433 sha256=6a0c7c8e56c348de3f213d9ef63dae9250f6208e5e21bc8c57f099433389479a
+  Stored in directory: /tmp/pip-ephem-wheel-cache-8hd818f6/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -420,10 +406,10 @@ FAIL: test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_
 Traceback (most recent call last):
   File "/testbed/tests/auth_tests/test_basic.py", line 156, in test_get_user_fallback_secret
     self.assertIsInstance(user, User)
-AssertionError: <django.contrib.auth.models.AnonymousUser object at 0x7ffffced71d0> is not an instance of <class 'django.contrib.auth.models.User'>
+AssertionError: <django.contrib.auth.models.AnonymousUser object at 0x7ffffcece150> is not an instance of <class 'django.contrib.auth.models.User'>
 
 ----------------------------------------------------------------------
-Ran 13 tests in 0.035s
+Ran 13 tests in 0.031s
 
 FAILED (failures=1)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...

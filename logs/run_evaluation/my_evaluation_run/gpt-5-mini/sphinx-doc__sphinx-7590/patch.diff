@@ -1,72 +1,104 @@
 diff --git a/sphinx/domains/cpp.py b/sphinx/domains/cpp.py
-index fe52d881d..b830de01f 100644
+index fe52d881d..acf26b840 100644
 --- a/sphinx/domains/cpp.py
 +++ b/sphinx/domains/cpp.py
-@@ -882,6 +882,29 @@ class ASTCharLiteral(ASTLiteral):
-         signode.append(nodes.Text(txt, txt))
- 
- 
-+class ASTUserDefinedLiteral(ASTLiteral):
-+    # Represents a literal (number, string or char) that has a user-defined
-+    # literal suffix attached (e.g. 42_km, "foo"_s, 'a'_x).
-+    def __init__(self, base: ASTLiteral, identifier: ASTIdentifier) -> None:
-+        self.base = base
-+        self.identifier = identifier
-+
-+    def _stringify(self, transform: StringifyTransform) -> str:
-+        # No space between base literal and suffix
-+        return transform(self.base) + transform(self.identifier)
-+
-+    def get_id(self, version: int) -> str:
-+        # Use a composed id: base id + marker + identifier id.
-+        base_id = self.base.get_id(version)
-+        return base_id + 'li' + self.identifier.get_id(version)
-+
-+    def describe_signature(self, signode: TextElement, mode: str,
-+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
-+        # Render base literal then suffix without space.
-+        self.base.describe_signature(signode, mode, env, symbol)
-+        signode.append(nodes.Text(str(self.identifier)))
-+
-+
- class ASTThisLiteral(ASTExpression):
-     def _stringify(self, transform: StringifyTransform) -> str:
-         return "this"
-@@ -4664,10 +4687,22 @@ class DefinitionParser(BaseParser):
+@@ -4662,20 +4662,55 @@ class DefinitionParser(BaseParser):
+                       integer_literal_re, octal_literal_re]:
+             pos = self.pos
              if self.match(regex):
++                # consume standard single-letter suffixes like u, U, l, L, f, F
                  while self.current_char in 'uUlLfF':
                      self.pos += 1
-+                # If an identifier directly follows the literal (no whitespace),
-+                # treat it as a user-defined literal suffix.
-+                pos_after = self.pos
++                # consume optional user-defined-literal suffix (identifier-like)
++                # e.g. 6.626e-34q_J  or 1q_s
++                curpos = self.pos
 +                if self.match(identifier_re):
-+                    ident = ASTIdentifier(self.matched_text)
-+                    base = ASTNumberLiteral(self.definition[pos:pos_after])
-+                    return ASTUserDefinedLiteral(base, ident)
++                    # matched identifier suffix already advanced self.pos
++                    pass
++                else:
++                    # no identifier suffix, restore pos
++                    self.pos = curpos
                  return ASTNumberLiteral(self.definition[pos:self.pos])
  
          string = self._parse_string()
          if string is not None:
-+            # Check for UDL suffix directly following the string literal.
-+            pos_after = self.pos
+-            return ASTStringLiteral(string)
++            # try to consume an optional user-defined-literal suffix right after
++            # the string literal (e.g. "foo"s)
++            curpos = self.pos
 +            if self.match(identifier_re):
-+                ident = ASTIdentifier(self.matched_text)
-+                return ASTUserDefinedLiteral(ASTStringLiteral(string), ident)
-             return ASTStringLiteral(string)
++                suffix = self.matched_text
++                return ASTStringLiteral(string + suffix)
++            else:
++                # no suffix
++                self.pos = curpos
++                return ASTStringLiteral(string)
  
          # character-literal
-@@ -4675,7 +4710,13 @@ class DefinitionParser(BaseParser):
+         if self.match(char_literal_re):
              prefix = self.last_match.group(1)  # may be None when no prefix
              data = self.last_match.group(2)
++            # allow an optional UDL suffix after the character literal,
++            # e.g. 'c'_udl
++            curpos = self.pos
++            suffix = ''
++            if self.match(identifier_re):
++                suffix = self.matched_text
++            else:
++                self.pos = curpos
              try:
 -                return ASTCharLiteral(prefix, data)
-+                base_char = ASTCharLiteral(prefix, data)
-+                # If an identifier directly follows the char literal, treat as UDL.
-+                pos_after = self.pos
-+                if self.match(identifier_re):
-+                    ident = ASTIdentifier(self.matched_text)
-+                    return ASTUserDefinedLiteral(base_char, ident)
-+                return base_char
++                if suffix:
++                    # return a generic ASTStringLiteral-like token including the suffix
++                    # so that downstream consumers see the full literal token text.
++                    # Use the original substring from definition to include prefix/quotes.
++                    start_pos = self.last_match.start()
++                    full = self.definition[start_pos:self.pos]
++                    return ASTStringLiteral(full)
++                else:
++                    return ASTCharLiteral(prefix, data)
              except UnicodeDecodeError as e:
                  self.fail("Can not handle character literal. Internal error was: %s" % e)
              except UnsupportedMultiCharacterCharLiteral:
+diff --git a/sphinx/util/cfamily.py b/sphinx/util/cfamily.py
+index 790a492a5..bf219d0e0 100644
+--- a/sphinx/util/cfamily.py
++++ b/sphinx/util/cfamily.py
+@@ -68,6 +68,37 @@ char_literal_re = re.compile(r'''(?x)
+ ''')
+ 
+ 
++
++
++# user-defined literal suffix (simple approximation)
++# valid suffixes are either an identifier, or one or more identifier parts
++# joined by '_' as commonly used in UDLs (e.g. q_J). We allow an optional
++# leading single underscore as well (implementation-level).
++_udl_suffix_re = r'(?:[a-zA-Z_][a-zA-Z0-9_]*(?:_[a-zA-Z0-9_]+)*)'
++
++# Helpers: extend literal regexes to accept optional UDL suffixes.
++# We keep the original regexes for matching bare literals, but also allow
++# an optional suffix that starts with an identifier (both are used).
++
++integer_literal_with_udl_re = re.compile(r'(' + integer_literal_re.pattern + r')' +
++                                         r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++octal_literal_with_udl_re = re.compile(r'(' + octal_literal_re.pattern + r')' +
++                                       r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++hex_literal_with_udl_re = re.compile(r'(' + hex_literal_re.pattern + r')' +
++                                     r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++binary_literal_with_udl_re = re.compile(r'(' + binary_literal_re.pattern + r')' +
++                                        r'(?:(?:' + _udl_suffix_re + r')\b)?')
++
++float_literal_with_udl_re = re.compile(r'(' + float_literal_re.pattern + r')' +
++                                      r'(?:(?:' + _udl_suffix_re + r')\b)?',
++                                      re.X)
++
++char_literal_with_udl_re = re.compile(r'(' + char_literal_re.pattern + r')' +
++                                      r'(?:(?:' + _udl_suffix_re + r')\b)?',
++                                      re.X)
+ def verify_description_mode(mode: str) -> None:
+     if mode not in ('lastIsName', 'noneIsName', 'markType', 'markName', 'param'):
+         raise Exception("Description mode '%s' is invalid." % mode)

@@ -1,41 +1,36 @@
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..b09e80b0b 100644
+index 4eddd12b1..752469adf 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -283,9 +283,9 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
-         transform : {"default", "pandas"}, default=None
-             Configure output of `transform` and `fit_transform`.
- 
--            - `"default"`: Default output format of a transformer
--            - `"pandas"`: DataFrame output
--            - `None`: Transform configuration is unchanged
-+            - "default": Default output format of a transformer
-+            - "pandas": DataFrame output
-+            - None: Transform configuration is unchanged
- 
-         Returns
-         -------
-@@ -293,6 +293,15 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+@@ -293,6 +293,8 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
              Estimator instance.
          """
          super().set_output(transform=transform)
-+
-+        # Also propagate to the user-specified remainder if it is an estimator.
-+        # When called before fit, the remainder estimator would not be present in
-+        # `transformers_`, so ensure we set_output on it here when relevant.
-+        if getattr(self, "remainder", None) not in {"passthrough", "drop"} and getattr(
-+            self, "remainder", None
-+        ) is not None:
-+            _safe_set_output(self.remainder, transform=transform)
-+
++        # Set output on all transformers declared in the transformers list
++        # as well as on the fitted transformers (transformers_).
          transformers = (
              trans
              for _, trans, _ in chain(
-@@ -305,6 +314,7 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+@@ -303,6 +305,22 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+         for trans in transformers:
+             _safe_set_output(trans, transform=transform)
  
++        # Also ensure that the ``remainder`` estimator (if any) has its output
++        # configured. When `transformers_` is present and a fitted remainder
++        # transformer has been added, it will have been handled above. We only
++        # need to set the output on self.remainder when it is an estimator and
++        # was not already covered.
++        rem = getattr(self, "remainder", None)
++        rem_already_handled = False
++        if hasattr(self, "transformers_"):
++            for name, trans, _ in getattr(self, "transformers_", []):
++                if name == "remainder" and trans not in {"passthrough", "drop"}:
++                    rem_already_handled = True
++                    break
++
++        if rem is not None and rem not in {"passthrough", "drop"} and not rem_already_handled:
++            _safe_set_output(rem, transform=transform)
++
          return self
  
-+
      def get_params(self, deep=True):
-         """Get parameters for this estimator.
- 
