@@ -1,26 +1,24 @@
-*** Begin Patch
-*** Update File: django/forms/widgets.py
-@@
- class RadioSelect(ChoiceWidget):
-     allow_multiple_selected = False
-@@
-     def __init__(self, attrs=None, choices=()):
-         super().__init__(attrs, choices)
-+        # RadioSelect has an "unfilled" state inherently. When used with a
-+        # ModelChoiceField for a non-nullable ForeignKey (blank=False),
-+        # the empty label ("---------") is not a valid choice and shouldn't
-+        # be treated as the selected/checked option when rendering an empty
-+        # form. Ensure that we don't cause the first subwidget to be checked
-+        # by default when the value is the empty string.
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 40ac1d3162..dbcf2e7044 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -759,6 +759,19 @@ class RadioSelect(ChoiceWidget):
+     template_name = 'django/forms/widgets/radio.html'
+     option_template_name = 'django/forms/widgets/radio_option.html'
+ 
++    def format_value(self, value):
++        """Return selected values as a list.
 +
-     def id_for_label(self, id_):
-         """
-         RadioSelect has multiple inputs (one for each choice), but label
-         id handling for the whole field should use the first ID.
-         """
-         if id_:
-             return '%s_%s' % (id_, 0)
-         return None
-*** End Patch
-
-No changes detected to generate a patch.
++        For radio widgets, don't treat None as an empty-string selection.
++        Otherwise an unbound ModelChoiceField (value is None) will cause the
++        blank choice ('' / '---------') to be rendered as checked, which is
++        confusing for radio buttons because radio already has an unfilled
++        state. Returning an empty list results in no option being selected.
++        """
++        if value is None:
++            return []
++        return super().format_value(value)
++
+ 
+ class CheckboxSelectMultiple(ChoiceWidget):
+     allow_multiple_selected = True

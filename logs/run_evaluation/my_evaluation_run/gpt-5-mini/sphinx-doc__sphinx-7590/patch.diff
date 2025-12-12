@@ -1,0 +1,72 @@
+diff --git a/sphinx/domains/cpp.py b/sphinx/domains/cpp.py
+index fe52d881d..b830de01f 100644
+--- a/sphinx/domains/cpp.py
++++ b/sphinx/domains/cpp.py
+@@ -882,6 +882,29 @@ class ASTCharLiteral(ASTLiteral):
+         signode.append(nodes.Text(txt, txt))
+ 
+ 
++class ASTUserDefinedLiteral(ASTLiteral):
++    # Represents a literal (number, string or char) that has a user-defined
++    # literal suffix attached (e.g. 42_km, "foo"_s, 'a'_x).
++    def __init__(self, base: ASTLiteral, identifier: ASTIdentifier) -> None:
++        self.base = base
++        self.identifier = identifier
++
++    def _stringify(self, transform: StringifyTransform) -> str:
++        # No space between base literal and suffix
++        return transform(self.base) + transform(self.identifier)
++
++    def get_id(self, version: int) -> str:
++        # Use a composed id: base id + marker + identifier id.
++        base_id = self.base.get_id(version)
++        return base_id + 'li' + self.identifier.get_id(version)
++
++    def describe_signature(self, signode: TextElement, mode: str,
++                           env: "BuildEnvironment", symbol: "Symbol") -> None:
++        # Render base literal then suffix without space.
++        self.base.describe_signature(signode, mode, env, symbol)
++        signode.append(nodes.Text(str(self.identifier)))
++
++
+ class ASTThisLiteral(ASTExpression):
+     def _stringify(self, transform: StringifyTransform) -> str:
+         return "this"
+@@ -4664,10 +4687,22 @@ class DefinitionParser(BaseParser):
+             if self.match(regex):
+                 while self.current_char in 'uUlLfF':
+                     self.pos += 1
++                # If an identifier directly follows the literal (no whitespace),
++                # treat it as a user-defined literal suffix.
++                pos_after = self.pos
++                if self.match(identifier_re):
++                    ident = ASTIdentifier(self.matched_text)
++                    base = ASTNumberLiteral(self.definition[pos:pos_after])
++                    return ASTUserDefinedLiteral(base, ident)
+                 return ASTNumberLiteral(self.definition[pos:self.pos])
+ 
+         string = self._parse_string()
+         if string is not None:
++            # Check for UDL suffix directly following the string literal.
++            pos_after = self.pos
++            if self.match(identifier_re):
++                ident = ASTIdentifier(self.matched_text)
++                return ASTUserDefinedLiteral(ASTStringLiteral(string), ident)
+             return ASTStringLiteral(string)
+ 
+         # character-literal
+@@ -4675,7 +4710,13 @@ class DefinitionParser(BaseParser):
+             prefix = self.last_match.group(1)  # may be None when no prefix
+             data = self.last_match.group(2)
+             try:
+-                return ASTCharLiteral(prefix, data)
++                base_char = ASTCharLiteral(prefix, data)
++                # If an identifier directly follows the char literal, treat as UDL.
++                pos_after = self.pos
++                if self.match(identifier_re):
++                    ident = ASTIdentifier(self.matched_text)
++                    return ASTUserDefinedLiteral(base_char, ident)
++                return base_char
+             except UnicodeDecodeError as e:
+                 self.fail("Can not handle character literal. Internal error was: %s" % e)
+             except UnsupportedMultiCharacterCharLiteral:
