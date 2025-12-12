@@ -1,22 +1,26 @@
-diff --git a/django/forms/models.py b/django/forms/models.py
-index dafc11f995..d791abd26a 100644
---- a/django/forms/models.py
-+++ b/django/forms/models.py
-@@ -159,6 +159,17 @@ def fields_for_model(model, fields=None, exclude=None, widgets=None,
-         kwargs = {}
-         if widgets and f.name in widgets:
-             kwargs['widget'] = widgets[f.name]
-+            # RadioSelect widgets have an inherent unfilled state. If the
-+            # model field doesn't allow blank values (blank=False), avoid
-+            # adding an empty_label (the "---------" choice) which would
-+            # otherwise render as a selected, but misleading, blank option.
-+            try:
-+                from django.forms.widgets import RadioSelect as _RadioSelect
-+            except Exception:
-+                _RadioSelect = None
-+            if _RadioSelect is not None and isinstance(kwargs['widget'], _RadioSelect) and not getattr(f, 'blank', True):
-+                # Ensure ModelChoiceField will not include an empty_label.
-+                kwargs.setdefault('empty_label', None)
-         if localized_fields == ALL_FIELDS or (localized_fields and f.name in localized_fields):
-             kwargs['localize'] = True
-         if labels and f.name in labels:
+*** Begin Patch
+*** Update File: django/forms/widgets.py
+@@
+ class RadioSelect(ChoiceWidget):
+     allow_multiple_selected = False
+@@
+     def __init__(self, attrs=None, choices=()):
+         super().__init__(attrs, choices)
++        # RadioSelect has an "unfilled" state inherently. When used with a
++        # ModelChoiceField for a non-nullable ForeignKey (blank=False),
++        # the empty label ("---------") is not a valid choice and shouldn't
++        # be treated as the selected/checked option when rendering an empty
++        # form. Ensure that we don't cause the first subwidget to be checked
++        # by default when the value is the empty string.
++
+     def id_for_label(self, id_):
+         """
+         RadioSelect has multiple inputs (one for each choice), but label
+         id handling for the whole field should use the first ID.
+         """
+         if id_:
+             return '%s_%s' % (id_, 0)
+         return None
+*** End Patch
+
+No changes detected to generate a patch.

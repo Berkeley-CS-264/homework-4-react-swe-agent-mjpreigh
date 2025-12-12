@@ -28,11 +28,11 @@
                 ]
             },
             "PASS_TO_PASS": {
-                "success": [],
-                "failure": [
+                "success": [
                     "test_set_up_class (servers.tests.LiveServerTestCaseSetupTest)",
                     "Contrast to"
-                ]
+                ],
+                "failure": []
             },
             "FAIL_TO_FAIL": {
                 "success": [],

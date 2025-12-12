@@ -1,6 +1,11 @@
 from utils import get_sb_environment
 import subprocess
 import swebench
+import tempfile
+import os
+import tempfile
+import subprocess
+from pathlib import Path
 
 class LimitsExceeded(Exception):
     """Raised when the agent has reached its step limit."""
@@ -63,21 +68,81 @@ class SWEEnvironment:
             return f"{result}\n\nError running git commands: {e}"
 
     # -------------------- TODO(student): add more functions here if you want, not required --------------------
+    # run script
     def replace_in_file(self, file_path: str, from_line: int, to_line: int, content: str) -> str:
         """
-        [Optional] Replace the content of the file from the given line to the given line with the given content
+        Replace the content of the file from the given line to the given line with the given content. ALL CONTENT ON AND BETWEEN THE GIVEN LINES WILL BE DELETED.
+
+        Args;
+            file_path (str): the path to the file
+
+            from_line (int): first line to be replaced
+
+            to_line (int): last line to be replaced
+
+            content (str): content to insert in place of the deleted lines
+
+        Returns:
+            Does not return extra information.
         """
-        from_line = int(from_line)
-        to_line = int(to_line)
-        cmd = f'head -n {from_line - 1} {file_path} > temp_file.txt'
+        cmd = f'cat {file_path}'
+        lines = self.run_bash_cmd(cmd)
+        # Calculate 0-indexed positions
+
+        line_num = 1
+        new_lines = []
+        for line in lines.splitlines():
+            if line_num < int(from_line) or line_num > int(to_line):
+                new_lines.append(line)
+            if line_num == from_line:
+                content_lines = content.splitlines("/n")
+                print("content start")
+                for line2 in content_lines:
+                    print(line2)
+                    new_lines.append(line2)
+                print("content end")
+            line_num += 1
+
+        print("start new lines")
+        line_num = 1
+        for linen in new_lines:
+            print(linen)
+            cmd = f'echo "{linen}" > {file_path}'
+            if line_num > 1:
+                cmd = f'echo "{linen}" >> {file_path}'
+            self.run_bash_cmd(cmd)
+            line_num += 1
+
+        print("end new lines")
+        return self.show_file(file_path)
+
+    
+    def insert_in_file(self, file_path: str, line_number: int, content: str) -> str:
+        """
+        Insert the given content in the file after the given line number. NOTHING WILL BE DELETED FROM THE FILE.
+
+        Args;
+            file_path (str): the path to the file
+
+            line_number (int): the content will be inserted AFTER this line number
+
+            content (str): content to insert in place of the deleted lines
+
+        Returns:
+            Does not return extra information.
+        """
+        line_number = int(line_number)
+
+        cmd = f'head -n {line_number} {file_path} > temp_file.txt'
         self.run_bash_cmd(cmd)
         cmd = f'echo {content} >> temp_file.txt'
         self.run_bash_cmd(cmd)
-        cmd = f'tail -n +{to_line + 1} {file_path} >> temp_file.txt'
+        cmd = f'tail -n +{line_number + 1} {file_path} >> temp_file.txt'
         self.run_bash_cmd(cmd)
         cmd = f'cat temp_file.txt > {file_path}'
         self.run_bash_cmd(cmd)
-        return f'replaced lines {from_line} to {to_line} in {file_path} with "{content}"'
+        return "Now run tests to see if the is a successful patch. (Command might be ./tests/runtests.py, pytest -q, or something else)"
+
 
     def show_file(self, file_path: str) -> str:
         """
@@ -95,7 +160,7 @@ class SWEEnvironment:
             results.append[f'-----FILE: "{file}"-----']
             cmd = f'cat -n "{file}"'
             results.append(self.run_bash_cmd(cmd))
-        return results.join("\n")
+        return "\n".join(results)
     
     def search_files(self, content: str) -> str:
         """

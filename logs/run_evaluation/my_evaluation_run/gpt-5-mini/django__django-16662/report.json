@@ -3,13 +3,13 @@
         "patch_is_None": false,
         "patch_exists": true,
         "patch_successfully_applied": true,
-        "resolved": false,
+        "resolved": true,
         "tests_status": {
             "FAIL_TO_PASS": {
-                "success": [],
-                "failure": [
+                "success": [
                     "#24155 - Tests ordering of imports."
-                ]
+                ],
+                "failure": []
             },
             "PASS_TO_PASS": {
                 "success": [
@@ -21,8 +21,11 @@
                     "test_multiline_args_signature (migrations.test_writer.OperationWriterTests.test_multiline_args_signature)",
                     "test_nested_args_signature (migrations.test_writer.OperationWriterTests.test_nested_args_signature)",
                     "test_nested_operation_expand_args_signature (migrations.test_writer.OperationWriterTests.test_nested_operation_expand_args_signature)",
+                    "test_custom_operation (migrations.test_writer.WriterTests.test_custom_operation)",
                     "test_deconstruct_class_arguments (migrations.test_writer.WriterTests.test_deconstruct_class_arguments)",
+                    "Test comments at top of file.",
                     "test_migration_path (migrations.test_writer.WriterTests.test_migration_path)",
+                    "django.db.models shouldn't be imported if unused.",
                     "test_register_non_serializer (migrations.test_writer.WriterTests.test_register_non_serializer)",
                     "test_register_serializer (migrations.test_writer.WriterTests.test_register_serializer)",
                     "test_serialize_builtin_types (migrations.test_writer.WriterTests.test_serialize_builtin_types)",
@@ -59,14 +62,10 @@
                     "test_serialize_type_model (migrations.test_writer.WriterTests.test_serialize_type_model)",
                     "test_serialize_type_none (migrations.test_writer.WriterTests.test_serialize_type_none)",
                     "An unbound method used within a class body can be serialized.",
-                    "test_serialize_uuid (migrations.test_writer.WriterTests.test_serialize_uuid)"
-                ],
-                "failure": [
-                    "test_custom_operation (migrations.test_writer.WriterTests.test_custom_operation)",
-                    "Test comments at top of file.",
-                    "django.db.models shouldn't be imported if unused.",
+                    "test_serialize_uuid (migrations.test_writer.WriterTests.test_serialize_uuid)",
                     "Tests serializing a simple migration."
-                ]
+                ],
+                "failure": []
             },
             "FAIL_TO_FAIL": {
                 "success": [],

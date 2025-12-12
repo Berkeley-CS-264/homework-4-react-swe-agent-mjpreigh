@@ -1,81 +1,63 @@
-2025-12-11 16:13:51,306 - INFO - Creating container for astropy__astropy-7166...
-2025-12-11 16:13:51,359 - INFO - Container for astropy__astropy-7166 created: b20d08c1b6aaca25f51434f323da2c6ad1ca92a7b8c6fb809084cf079258f7c8
-2025-12-11 16:13:51,460 - INFO - Container for astropy__astropy-7166 started: b20d08c1b6aaca25f51434f323da2c6ad1ca92a7b8c6fb809084cf079258f7c8
-2025-12-11 16:13:51,460 - INFO - Intermediate patch for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/patch.diff, now applying to container...
-2025-12-11 16:13:51,637 - INFO - >>>>> Applied Patch:
+2025-12-11 20:35:11,389 - INFO - Creating container for astropy__astropy-7166...
+2025-12-11 20:35:11,439 - INFO - Container for astropy__astropy-7166 created: 0ff37eb7f68d98cab87308a7138cc3e99b697f7cedc974531f44078d9a7df487
+2025-12-11 20:35:11,542 - INFO - Container for astropy__astropy-7166 started: 0ff37eb7f68d98cab87308a7138cc3e99b697f7cedc974531f44078d9a7df487
+2025-12-11 20:35:11,542 - INFO - Intermediate patch for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/patch.diff, now applying to container...
+2025-12-11 20:35:11,708 - INFO - >>>>> Applied Patch:
 Checking patch astropy/utils/misc.py...
-Checking patch temp_file.txt...
 Applied patch astropy/utils/misc.py cleanly.
-Applied patch temp_file.txt cleanly.
 
-2025-12-11 16:13:52,022 - INFO - Git diff before:
+2025-12-11 20:35:12,221 - INFO - Git diff before:
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..1bdbbb81f 100644
+index de3fb01d1..a9a0f12ee 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -520,25 +520,6 @@ class InheritDocstrings(type):
-         u'Wiggle the thingamajig'
-     """
+@@ -537,6 +537,19 @@ class InheritDocstrings(type):
+                         val.__doc__ = super_method.__doc__
+                         break
  
--    def __init__(cls, name, bases, dct):
--        def is_public_member(key):
--            return (
--                (key.startswith('__') and key.endswith('__')
--                 and len(key) > 4) or
--                not key.startswith('_'))
--
--        for key, val in dct.items():
--            if (inspect.isfunction(val) and
--                is_public_member(key) and
--                val.__doc__ is None):
--                for base in cls.__mro__[1:]:
--                    super_method = getattr(base, key, None)
--                    if super_method is not None:
--                        val.__doc__ = super_method.__doc__
--                        break
--
--        super().__init__(name, bases, dct)
--
- 
- class OrderedDescriptor(metaclass=abc.ABCMeta):
-     """
-2025-12-11 16:13:52,022 - INFO - Eval script for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/eval.sh; copying to container...
-2025-12-11 16:13:57,912 - INFO - Test runtime: 5.83 seconds
-2025-12-11 16:13:57,913 - INFO - Test output for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/test_output.txt
-2025-12-11 16:13:58,033 - INFO - Git diff after:
++            # Also handle properties: inspect.isfunction returns False for
++            # property objects, so detect them explicitly and if the property's
++            # fget has no docstring, try to inherit it from the first base
++            # class that defines the property.
++            elif isinstance(val, property) and is_public_member(key):
++                fget = val.fget
++                if fget is not None and fget.__doc__ is None:
++                    for base in cls.__mro__[1:]:
++                        super_prop = getattr(base, key, None)
++                        if isinstance(super_prop, property) and super_prop.fget is not None:
++                            fget.__doc__ = super_prop.fget.__doc__
++                            break
++
+         super().__init__(name, bases, dct)
+2025-12-11 20:35:12,221 - INFO - Eval script for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/eval.sh; copying to container...
+2025-12-11 20:35:18,216 - INFO - Test runtime: 5.92 seconds
+2025-12-11 20:35:18,217 - INFO - Test output for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/test_output.txt
+2025-12-11 20:35:18,344 - INFO - Git diff after:
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..1bdbbb81f 100644
+index de3fb01d1..a9a0f12ee 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -520,25 +520,6 @@ class InheritDocstrings(type):
-         u'Wiggle the thingamajig'
-     """
+@@ -537,6 +537,19 @@ class InheritDocstrings(type):
+                         val.__doc__ = super_method.__doc__
+                         break
  
--    def __init__(cls, name, bases, dct):
--        def is_public_member(key):
--            return (
--                (key.startswith('__') and key.endswith('__')
--                 and len(key) > 4) or
--                not key.startswith('_'))
--
--        for key, val in dct.items():
--            if (inspect.isfunction(val) and
--                is_public_member(key) and
--                val.__doc__ is None):
--                for base in cls.__mro__[1:]:
--                    super_method = getattr(base, key, None)
--                    if super_method is not None:
--                        val.__doc__ = super_method.__doc__
--                        break
--
--        super().__init__(name, bases, dct)
--
- 
- class OrderedDescriptor(metaclass=abc.ABCMeta):
-     """
-2025-12-11 16:13:58,033 - INFO - Grading answer for astropy__astropy-7166...
-2025-12-11 16:13:58,034 - INFO - report: {'astropy__astropy-7166': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/utils/tests/test_misc.py::test_inherit_docstrings']}, 'PASS_TO_PASS': {'success': ['astropy/utils/tests/test_misc.py::test_isiterable', 'astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure', 'astropy/utils/tests/test_misc.py::test_skip_hidden', 'astropy/utils/tests/test_misc.py::test_JsonCustomEncoder', 'astropy/utils/tests/test_misc.py::test_check_broadcast', 'astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
++            # Also handle properties: inspect.isfunction returns False for
++            # property objects, so detect them explicitly and if the property's
++            # fget has no docstring, try to inherit it from the first base
++            # class that defines the property.
++            elif isinstance(val, property) and is_public_member(key):
++                fget = val.fget
++                if fget is not None and fget.__doc__ is None:
++                    for base in cls.__mro__[1:]:
++                        super_prop = getattr(base, key, None)
++                        if isinstance(super_prop, property) and super_prop.fget is not None:
++                            fget.__doc__ = super_prop.fget.__doc__
++                            break
++
+         super().__init__(name, bases, dct)
+2025-12-11 20:35:18,344 - INFO - Grading answer for astropy__astropy-7166...
+2025-12-11 20:35:18,345 - INFO - report: {'astropy__astropy-7166': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/utils/tests/test_misc.py::test_inherit_docstrings']}, 'PASS_TO_PASS': {'success': ['astropy/utils/tests/test_misc.py::test_isiterable', 'astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure', 'astropy/utils/tests/test_misc.py::test_skip_hidden', 'astropy/utils/tests/test_misc.py::test_JsonCustomEncoder', 'astropy/utils/tests/test_misc.py::test_check_broadcast', 'astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for astropy__astropy-7166: resolved: False
-2025-12-11 16:13:58,035 - INFO - Attempting to stop container sweb.eval.astropy__astropy-7166.my_evaluation_run...
-2025-12-11 16:14:13,199 - INFO - Attempting to remove container sweb.eval.astropy__astropy-7166.my_evaluation_run...
-2025-12-11 16:14:13,213 - INFO - Container sweb.eval.astropy__astropy-7166.my_evaluation_run removed.
+2025-12-11 20:35:18,346 - INFO - Attempting to stop container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-11 20:35:33,551 - INFO - Attempting to remove container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-11 20:35:33,563 - INFO - Container sweb.eval.astropy__astropy-7166.my_evaluation_run removed.

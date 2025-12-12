@@ -1,189 +1,81 @@
-2025-12-11 16:13:51,309 - INFO - Creating container for django__django-14053...
-2025-12-11 16:13:51,387 - INFO - Container for django__django-14053 created: 3b062e8f5111b4444a8a0665c8a36286719ce687d366de0d3ee7caffc13b34bb
-2025-12-11 16:13:51,515 - INFO - Container for django__django-14053 started: 3b062e8f5111b4444a8a0665c8a36286719ce687d366de0d3ee7caffc13b34bb
-2025-12-11 16:13:51,517 - INFO - Intermediate patch for django__django-14053 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14053/patch.diff, now applying to container...
-2025-12-11 16:13:51,675 - INFO - >>>>> Applied Patch:
+2025-12-11 20:35:11,390 - INFO - Creating container for django__django-14053...
+2025-12-11 20:35:11,467 - INFO - Container for django__django-14053 created: 225db99ae9d3c5df75c48b8a8699621d766accb6ed0a4456f24b842ff74486fe
+2025-12-11 20:35:11,590 - INFO - Container for django__django-14053 started: 225db99ae9d3c5df75c48b8a8699621d766accb6ed0a4456f24b842ff74486fe
+2025-12-11 20:35:11,590 - INFO - Intermediate patch for django__django-14053 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14053/patch.diff, now applying to container...
+2025-12-11 20:35:11,759 - INFO - >>>>> Applied Patch:
 Checking patch django/contrib/staticfiles/storage.py...
-Checking patch temp_file.txt...
 Applied patch django/contrib/staticfiles/storage.py cleanly.
-Applied patch temp_file.txt cleanly.
 
-2025-12-11 16:13:52,210 - INFO - Git diff before:
+2025-12-11 20:35:12,418 - INFO - Git diff before:
 diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
-index 494890cc23..2e063bcbe0 100644
+index 494890cc23..6abceffc8b 100644
 --- a/django/contrib/staticfiles/storage.py
 +++ b/django/contrib/staticfiles/storage.py
-@@ -248,79 +248,6 @@ class HashedFilesMixin:
-         # Store the processed paths
-         self.hashed_files.update(hashed_files)
+@@ -228,7 +228,14 @@ class HashedFilesMixin:
+         ]
+         # Do a single pass first. Post-process all files once, then repeat for
+         # adjustable files.
++        # Track which original files we've yielded so we don't report duplicates
++        # when multiple internal passes are required to resolve nested refs.
++        yielded = set()
+         for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
++            if name in yielded:
++                # Don't yield duplicate notifications, but continue processing.
++                continue
++            yielded.add(name)
+             yield name, hashed_name, processed
  
--    def _post_process(self, paths, adjustable_paths, hashed_files):
--        # Sort the files by directory level
--        def path_level(name):
--            return len(name.split(os.sep))
--
--        for name in sorted(paths, key=path_level, reverse=True):
--            substitutions = True
--            # use the original, local file, not the copied-but-unprocessed
--            # file, which might be somewhere far away, like S3
--            storage, path = paths[name]
--            with storage.open(path) as original_file:
--                cleaned_name = self.clean_name(name)
--                hash_key = self.hash_key(cleaned_name)
--
--                # generate the hash with the original content, even for
--                # adjustable files.
--                if hash_key not in hashed_files:
--                    hashed_name = self.hashed_name(name, original_file)
--                else:
--                    hashed_name = hashed_files[hash_key]
--
--                # then get the original's file content..
--                if hasattr(original_file, 'seek'):
--                    original_file.seek(0)
--
--                hashed_file_exists = self.exists(hashed_name)
--                processed = False
--
--                # ..to apply each replacement pattern to the content
--                if name in adjustable_paths:
--                    old_hashed_name = hashed_name
--                    content = original_file.read().decode('utf-8')
--                    for extension, patterns in self._patterns.items():
--                        if matches_patterns(path, (extension,)):
--                            for pattern, template in patterns:
--                                converter = self.url_converter(name, hashed_files, template)
--                                try:
--                                    content = pattern.sub(converter, content)
--                                except ValueError as exc:
--                                    yield name, None, exc, False
--                    if hashed_file_exists:
--                        self.delete(hashed_name)
--                    # then save the processed result
--                    content_file = ContentFile(content.encode())
--                    if self.keep_intermediate_files:
--                        # Save intermediate file for reference
--                        self._save(hashed_name, content_file)
--                    hashed_name = self.hashed_name(name, content_file)
--
--                    if self.exists(hashed_name):
--                        self.delete(hashed_name)
--
--                    saved_name = self._save(hashed_name, content_file)
--                    hashed_name = self.clean_name(saved_name)
--                    # If the file hash stayed the same, this file didn't change
--                    if old_hashed_name == hashed_name:
--                        substitutions = False
--                    processed = True
--
--                if not processed:
--                    # or handle the case in which neither processing nor
--                    # a change to the original file happened
--                    if not hashed_file_exists:
--                        processed = True
--                        saved_name = self._save(hashed_name, original_file)
--                        hashed_name = self.clean_name(saved_name)
--
--                # and then set the cache accordingly
--                hashed_files[hash_key] = hashed_name
--
--                yield name, hashed_name, processed, substitutions
--
--    def clean_name(self, name):
-         return name.replace('\\', '/')
+         paths = {path: paths[path] for path in adjustable_paths}
+@@ -236,7 +243,10 @@ class HashedFilesMixin:
+         for i in range(self.max_post_process_passes):
+             substitutions = False
+             for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
+-                yield name, hashed_name, processed
++                # Only report each original file once.
++                if name not in yielded:
++                    yielded.add(name)
++                    yield name, hashed_name, processed
+                 substitutions = substitutions or subst
  
-     def hash_key(self, name):
-2025-12-11 16:13:52,211 - INFO - Eval script for django__django-14053 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14053/eval.sh; copying to container...
-2025-12-11 16:13:57,932 - INFO - Test runtime: 5.68 seconds
-2025-12-11 16:13:57,933 - INFO - Test output for django__django-14053 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14053/test_output.txt
-2025-12-11 16:13:58,008 - INFO - Git diff after:
+             if not substitutions:
+2025-12-11 20:35:12,419 - INFO - Eval script for django__django-14053 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14053/eval.sh; copying to container...
+2025-12-11 20:35:18,393 - INFO - Test runtime: 5.93 seconds
+2025-12-11 20:35:18,393 - INFO - Test output for django__django-14053 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14053/test_output.txt
+2025-12-11 20:35:18,483 - INFO - Git diff after:
 diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
-index 494890cc23..2e063bcbe0 100644
+index 494890cc23..6abceffc8b 100644
 --- a/django/contrib/staticfiles/storage.py
 +++ b/django/contrib/staticfiles/storage.py
-@@ -248,79 +248,6 @@ class HashedFilesMixin:
-         # Store the processed paths
-         self.hashed_files.update(hashed_files)
+@@ -228,7 +228,14 @@ class HashedFilesMixin:
+         ]
+         # Do a single pass first. Post-process all files once, then repeat for
+         # adjustable files.
++        # Track which original files we've yielded so we don't report duplicates
++        # when multiple internal passes are required to resolve nested refs.
++        yielded = set()
+         for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
++            if name in yielded:
++                # Don't yield duplicate notifications, but continue processing.
++                continue
++            yielded.add(name)
+             yield name, hashed_name, processed
  
--    def _post_process(self, paths, adjustable_paths, hashed_files):
--        # Sort the files by directory level
--        def path_level(name):
--            return len(name.split(os.sep))
--
--        for name in sorted(paths, key=path_level, reverse=True):
--            substitutions = True
--            # use the original, local file, not the copied-but-unprocessed
--            # file, which might be somewhere far away, like S3
--            storage, path = paths[name]
--            with storage.open(path) as original_file:
--                cleaned_name = self.clean_name(name)
--                hash_key = self.hash_key(cleaned_name)
--
--                # generate the hash with the original content, even for
--                # adjustable files.
--                if hash_key not in hashed_files:
--                    hashed_name = self.hashed_name(name, original_file)
--                else:
--                    hashed_name = hashed_files[hash_key]
--
--                # then get the original's file content..
--                if hasattr(original_file, 'seek'):
--                    original_file.seek(0)
--
--                hashed_file_exists = self.exists(hashed_name)
--                processed = False
--
--                # ..to apply each replacement pattern to the content
--                if name in adjustable_paths:
--                    old_hashed_name = hashed_name
--                    content = original_file.read().decode('utf-8')
--                    for extension, patterns in self._patterns.items():
--                        if matches_patterns(path, (extension,)):
--                            for pattern, template in patterns:
--                                converter = self.url_converter(name, hashed_files, template)
--                                try:
--                                    content = pattern.sub(converter, content)
--                                except ValueError as exc:
--                                    yield name, None, exc, False
--                    if hashed_file_exists:
--                        self.delete(hashed_name)
--                    # then save the processed result
--                    content_file = ContentFile(content.encode())
--                    if self.keep_intermediate_files:
--                        # Save intermediate file for reference
--                        self._save(hashed_name, content_file)
--                    hashed_name = self.hashed_name(name, content_file)
--
--                    if self.exists(hashed_name):
--                        self.delete(hashed_name)
--
--                    saved_name = self._save(hashed_name, content_file)
--                    hashed_name = self.clean_name(saved_name)
--                    # If the file hash stayed the same, this file didn't change
--                    if old_hashed_name == hashed_name:
--                        substitutions = False
--                    processed = True
--
--                if not processed:
--                    # or handle the case in which neither processing nor
--                    # a change to the original file happened
--                    if not hashed_file_exists:
--                        processed = True
--                        saved_name = self._save(hashed_name, original_file)
--                        hashed_name = self.clean_name(saved_name)
--
--                # and then set the cache accordingly
--                hashed_files[hash_key] = hashed_name
--
--                yield name, hashed_name, processed, substitutions
--
--    def clean_name(self, name):
-         return name.replace('\\', '/')
+         paths = {path: paths[path] for path in adjustable_paths}
+@@ -236,7 +243,10 @@ class HashedFilesMixin:
+         for i in range(self.max_post_process_passes):
+             substitutions = False
+             for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
+-                yield name, hashed_name, processed
++                # Only report each original file once.
++                if name not in yielded:
++                    yielded.add(name)
++                    yield name, hashed_name, processed
+                 substitutions = substitutions or subst
  
-     def hash_key(self, name):
-2025-12-11 16:13:58,008 - INFO - Grading answer for django__django-14053...
-2025-12-11 16:13:58,016 - INFO - report: {'django__django-14053': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['post_processing behaves correctly.']}, 'PASS_TO_PASS': {'success': ['test_collect_static_files_default_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions)', 'test_collect_static_files_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions)', 'test_collect_static_files_subclass_of_static_storage (staticfiles_tests.test_storage.TestStaticFilePermissions)'], 'failure': ['test_hashed_name (staticfiles_tests.test_storage.TestCollectionNoneHashStorage)', 'With storage classes having several file extension patterns, only the', 'test_template_tag_return (staticfiles_tests.test_storage.TestCollectionSimpleStorage)', 'test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionSimpleStorage)', 'test_file_change_after_collectstatic (staticfiles_tests.test_storage.TestCollectionHashedFilesCache)', 'test_clear_empties_manifest (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_css_import_case_insensitive (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_import_loop (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'See #18050', 'test_intermediate_files (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_loaded_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_manifest_does_not_exist (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_manifest_does_not_ignore_permission_error (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_manifest_exists (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_missing_entry (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_parse_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_ignored_completely (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_with_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_with_querystring (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_with_querystring_and_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'post_processing indicates the origin of the error when it fails.', 'test_template_tag_absolute (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'Like test_template_tag_absolute, but for a file in STATIC_ROOT (#26249).', 'test_template_tag_deep_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_return (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_url (staticfiles_tests.test_storage.TestCollectionManifestStorage)']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
-Result for django__django-14053: resolved: False
-2025-12-11 16:13:58,017 - INFO - Attempting to stop container sweb.eval.django__django-14053.my_evaluation_run...
-2025-12-11 16:14:13,171 - INFO - Attempting to remove container sweb.eval.django__django-14053.my_evaluation_run...
-2025-12-11 16:14:13,183 - INFO - Container sweb.eval.django__django-14053.my_evaluation_run removed.
+             if not substitutions:
+2025-12-11 20:35:18,483 - INFO - Grading answer for django__django-14053...
+2025-12-11 20:35:18,484 - INFO - report: {'django__django-14053': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['post_processing behaves correctly.'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_hashed_name (staticfiles_tests.test_storage.TestCollectionNoneHashStorage)', 'test_collect_static_files_default_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions)', 'test_collect_static_files_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions)', 'test_collect_static_files_subclass_of_static_storage (staticfiles_tests.test_storage.TestStaticFilePermissions)', 'With storage classes having several file extension patterns, only the', 'test_template_tag_return (staticfiles_tests.test_storage.TestCollectionSimpleStorage)', 'test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionSimpleStorage)', 'test_file_change_after_collectstatic (staticfiles_tests.test_storage.TestCollectionHashedFilesCache)', 'test_clear_empties_manifest (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_css_import_case_insensitive (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_import_loop (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'See #18050', 'test_intermediate_files (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_loaded_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_manifest_does_not_exist (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_manifest_does_not_ignore_permission_error (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_manifest_exists (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_missing_entry (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_parse_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_ignored_completely (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_with_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_with_querystring (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_path_with_querystring_and_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'post_processing indicates the origin of the error when it fails.', 'test_template_tag_absolute (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'Like test_template_tag_absolute, but for a file in STATIC_ROOT (#26249).', 'test_template_tag_deep_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_return (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionManifestStorage)', 'test_template_tag_url (staticfiles_tests.test_storage.TestCollectionManifestStorage)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for django__django-14053: resolved: True
+2025-12-11 20:35:18,485 - INFO - Attempting to stop container sweb.eval.django__django-14053.my_evaluation_run...
+2025-12-11 20:35:33,636 - INFO - Attempting to remove container sweb.eval.django__django-14053.my_evaluation_run...
+2025-12-11 20:35:33,649 - INFO - Container sweb.eval.django__django-14053.my_evaluation_run removed.

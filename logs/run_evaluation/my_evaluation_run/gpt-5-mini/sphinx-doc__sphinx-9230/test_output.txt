@@ -135,11 +135,7 @@ On branch master
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   sphinx/ext/napoleon/docstring.py
-
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-	temp_file.txt
+	modified:   sphinx/util/docfields.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -233,42 +229,31 @@ index 2538952e3..94e1d8b32 100644
  ]
  
  extras_require = {
-diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
-index d8cb75a5f..208b01e59 100644
---- a/sphinx/ext/napoleon/docstring.py
-+++ b/sphinx/ext/napoleon/docstring.py
-@@ -256,31 +256,6 @@ class GoogleDocstring:
-             line = self._line_iter.peek()
-         return lines
+diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
+index 3a3367ebe..4a8d55e2d 100644
+--- a/sphinx/util/docfields.py
++++ b/sphinx/util/docfields.py
+@@ -297,13 +297,17 @@ class DocFieldTransformer:
  
--    def _consume_field(self, parse_type: bool = True, prefer_type: bool = False
--                       ) -> Tuple[str, str, List[str]]:
--        line = next(self._line_iter)
--
--        before, colon, after = self._partition_field_on_colon(line)
--        _name, _type, _desc = before, '', after
--
--        if parse_type:
--            match = _google_typed_arg_regex.match(before)
--            if match:
--                _name = match.group(1).strip()
--                _type = match.group(2)
--
--        _name = self._escape_args_and_kwargs(_name)
--
--        if prefer_type and not _type:
--            _type, _name = _name, _type
--
--        if _type and self._config.napoleon_preprocess_types:
--            _type = _convert_type_spec(_type, self._config.napoleon_type_aliases or {})
--
--        indent = self._get_indent(line) + 1
--        _descs = [_desc] + self._dedent(self._consume_indented_block(indent))
--        _descs = self.__class__(_descs, self._config).lines()
--        return _name, _type, _descs
+             # also support syntax like ``:param type name:``
+             if typedesc.is_typed:
++                # support syntax like ``:param type name:`` where the type
++                # itself may contain whitespace (for example "dict(str, str)"),
++                # so split from the right to get the argument name as the
++                # last token and treat the rest as the type.
+                 try:
+-                    argtype, argname = fieldarg.split(None, 1)
++                    argtype, argname = fieldarg.rsplit(None, 1)
+                 except ValueError:
++                    # couldn't split into type and name; leave as-is
+                     pass
+                 else:
+-                    types.setdefault(typename, {})[argname] = \
+-                        [nodes.Text(argtype)]
++                    types.setdefault(typename, {})[argname] = [nodes.Text(argtype)]
+                     fieldarg = argname
  
-     def _consume_fields(self, parse_type: bool = True, prefer_type: bool = False,
-                         multiple: bool = False) -> List[Tuple[str, str, List[str]]]:
+             translatable_content = nodes.inline(field_body.rawsource,
 diff --git a/tox.ini b/tox.ini
 index a363e187f..3b8bc12d0 100644
 --- a/tox.ini
@@ -469,147 +454,7 @@ configfile: setup.cfg
 plugins: cov-5.0.0
 collected 45 items
 
-tests/test_domain_py.py [32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31mF[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31m    [100%][0m
-
-=================================== FAILURES ===================================
-[31m[1m_____________________________ test_info_field_list _____________________________[0m
-
-app = <SphinxTestApp buildername='html'>
-
-    [0m[94mdef[39;49;00m [92mtest_info_field_list[39;49;00m(app):[90m[39;49;00m
-        text = ([33m"[39;49;00m[33m.. py:module:: example[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m.. py:class:: Class[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m   :param str name: blah blah[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m   :param age: blah blah[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m   :type age: int[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m   :param items: blah blah[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m   :type items: Tuple[str, ...][39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
-                [33m"[39;49;00m[33m   :param Dict[str, str] params: blah blah[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
-        doctree = restructuredtext.parse(app, text)[90m[39;49;00m
-        [96mprint[39;49;00m(doctree)[90m[39;49;00m
-    [90m[39;49;00m
-        assert_node(doctree, (nodes.target,[90m[39;49;00m
-                              addnodes.index,[90m[39;49;00m
-                              addnodes.index,[90m[39;49;00m
-                              [desc, ([desc_signature, ([desc_annotation, [33m"[39;49;00m[33mclass [39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                                                        [desc_addname, [33m"[39;49;00m[33mexample.[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                                                        [desc_name, [33m"[39;49;00m[33mClass[39;49;00m[33m"[39;49;00m])],[90m[39;49;00m
-                                      [desc_content, nodes.field_list, nodes.field])]))[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m],[90m[39;49;00m
-                    ([nodes.field_name, [33m"[39;49;00m[33mParameters[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [nodes.field_body, nodes.bullet_list, ([nodes.list_item, nodes.paragraph],[90m[39;49;00m
-                                                            [nodes.list_item, nodes.paragraph],[90m[39;49;00m
-                                                            [nodes.list_item, nodes.paragraph],[90m[39;49;00m
-                                                            [nodes.list_item, nodes.paragraph])]))[90m[39;49;00m
-    [90m[39;49;00m
-        [90m# :param str name:[39;49;00m[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m],[90m[39;49;00m
-                    ([addnodes.literal_strong, [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m ([39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [pending_xref, addnodes.literal_emphasis, [33m"[39;49;00m[33mstr[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m)[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33m -- [39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33mblah blah[39;49;00m[33m"[39;49;00m))[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m2[39;49;00m], pending_xref,[90m[39;49;00m
-                    refdomain=[33m"[39;49;00m[33mpy[39;49;00m[33m"[39;49;00m, reftype=[33m"[39;49;00m[33mclass[39;49;00m[33m"[39;49;00m, reftarget=[33m"[39;49;00m[33mstr[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                    **{[33m"[39;49;00m[33mpy:module[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mexample[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mpy:class[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mClass[39;49;00m[33m"[39;49;00m})[90m[39;49;00m
-    [90m[39;49;00m
-        [90m# :param age: + :type age:[39;49;00m[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m],[90m[39;49;00m
-                    ([addnodes.literal_strong, [33m"[39;49;00m[33mage[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m ([39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [pending_xref, addnodes.literal_emphasis, [33m"[39;49;00m[33mint[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m)[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33m -- [39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33mblah blah[39;49;00m[33m"[39;49;00m))[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m2[39;49;00m], pending_xref,[90m[39;49;00m
-                    refdomain=[33m"[39;49;00m[33mpy[39;49;00m[33m"[39;49;00m, reftype=[33m"[39;49;00m[33mclass[39;49;00m[33m"[39;49;00m, reftarget=[33m"[39;49;00m[33mint[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                    **{[33m"[39;49;00m[33mpy:module[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mexample[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mpy:class[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mClass[39;49;00m[33m"[39;49;00m})[90m[39;49;00m
-    [90m[39;49;00m
-        [90m# :param items: + :type items:[39;49;00m[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m2[39;49;00m][[94m0[39;49;00m],[90m[39;49;00m
-                    ([addnodes.literal_strong, [33m"[39;49;00m[33mitems[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m ([39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [pending_xref, addnodes.literal_emphasis, [33m"[39;49;00m[33mTuple[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [addnodes.literal_emphasis, [33m"[39;49;00m[33m[[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [pending_xref, addnodes.literal_emphasis, [33m"[39;49;00m[33mstr[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [addnodes.literal_emphasis, [33m"[39;49;00m[33m, [39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [addnodes.literal_emphasis, [33m"[39;49;00m[33m...[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [addnodes.literal_emphasis, [33m"[39;49;00m[33m][39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m)[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33m -- [39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33mblah blah[39;49;00m[33m"[39;49;00m))[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m2[39;49;00m][[94m0[39;49;00m][[94m2[39;49;00m], pending_xref,[90m[39;49;00m
-                    refdomain=[33m"[39;49;00m[33mpy[39;49;00m[33m"[39;49;00m, reftype=[33m"[39;49;00m[33mclass[39;49;00m[33m"[39;49;00m, reftarget=[33m"[39;49;00m[33mTuple[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                    **{[33m"[39;49;00m[33mpy:module[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mexample[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mpy:class[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mClass[39;49;00m[33m"[39;49;00m})[90m[39;49;00m
-        assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m2[39;49;00m][[94m0[39;49;00m][[94m4[39;49;00m], pending_xref,[90m[39;49;00m
-                    refdomain=[33m"[39;49;00m[33mpy[39;49;00m[33m"[39;49;00m, reftype=[33m"[39;49;00m[33mclass[39;49;00m[33m"[39;49;00m, reftarget=[33m"[39;49;00m[33mstr[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                    **{[33m"[39;49;00m[33mpy:module[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mexample[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mpy:class[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mClass[39;49;00m[33m"[39;49;00m})[90m[39;49;00m
-    [90m[39;49;00m
-        [90m# :param Dict[str, str] params:[39;49;00m[90m[39;49;00m
->       assert_node(doctree[[94m3[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m0[39;49;00m][[94m1[39;49;00m][[94m0[39;49;00m][[94m3[39;49;00m][[94m0[39;49;00m],[90m[39;49;00m
-                    ([addnodes.literal_strong, [33m"[39;49;00m[33mparams[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m ([39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [pending_xref, addnodes.literal_emphasis, [33m"[39;49;00m[33mDict[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [addnodes.literal_emphasis, [33m"[39;49;00m[33m[[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [pending_xref, addnodes.literal_emphasis, [33m"[39;49;00m[33mstr[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [addnodes.literal_emphasis, [33m"[39;49;00m[33m, [39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [pending_xref, addnodes.literal_emphasis, [33m"[39;49;00m[33mstr[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [addnodes.literal_emphasis, [33m"[39;49;00m[33m][39;49;00m[33m"[39;49;00m],[90m[39;49;00m
-                     [33m"[39;49;00m[33m)[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33m -- [39;49;00m[33m"[39;49;00m,[90m[39;49;00m
-                     [33m"[39;49;00m[33mblah blah[39;49;00m[33m"[39;49;00m))[90m[39;49;00m
-
-[1m[31mtests/test_domain_py.py[0m:989: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-[1m[31msphinx/testing/util.py[0m:68: in assert_node
-    [0massert_node(node[i], nodecls, xpath=path, **kwargs)[90m[39;49;00m
-[1m[31msphinx/testing/util.py[0m:60: in assert_node
-    [0massert_node(node[[94m0[39;49;00m], [96mcls[39;49;00m[[94m1[39;49;00m:], xpath=xpath + [33m"[39;49;00m[33m[0][39;49;00m[33m"[39;49;00m, **kwargs)[90m[39;49;00m
-[1m[31msphinx/testing/util.py[0m:51: in assert_node
-    [0massert_node(node, [96mcls[39;49;00m[[94m0[39;49;00m], xpath=xpath, **kwargs)[90m[39;49;00m
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-node = <#text: 'str'>, cls = 'params', xpath = '[0][0]', kwargs = {}
-
-    [0m[94mdef[39;49;00m [92massert_node[39;49;00m(node: Node, [96mcls[39;49;00m: Any = [94mNone[39;49;00m, xpath: [96mstr[39;49;00m = [33m"[39;49;00m[33m"[39;49;00m, **kwargs: Any) -> [94mNone[39;49;00m:[90m[39;49;00m
-        [94mif[39;49;00m [96mcls[39;49;00m:[90m[39;49;00m
-            [94mif[39;49;00m [96misinstance[39;49;00m([96mcls[39;49;00m, [96mlist[39;49;00m):[90m[39;49;00m
-                assert_node(node, [96mcls[39;49;00m[[94m0[39;49;00m], xpath=xpath, **kwargs)[90m[39;49;00m
-                [94mif[39;49;00m [96mcls[39;49;00m[[94m1[39;49;00m:]:[90m[39;49;00m
-                    [94mif[39;49;00m [96misinstance[39;49;00m([96mcls[39;49;00m[[94m1[39;49;00m], [96mtuple[39;49;00m):[90m[39;49;00m
-                        assert_node(node, [96mcls[39;49;00m[[94m1[39;49;00m], xpath=xpath, **kwargs)[90m[39;49;00m
-                    [94melse[39;49;00m:[90m[39;49;00m
-                        [94massert[39;49;00m [96misinstance[39;49;00m(node, nodes.Element), \
-                            [33m'[39;49;00m[33mThe node[39;49;00m[33m%s[39;49;00m[33m does not have any children[39;49;00m[33m'[39;49;00m % xpath[90m[39;49;00m
-                        [94massert[39;49;00m [96mlen[39;49;00m(node) == [94m1[39;49;00m, \
-                            [33m'[39;49;00m[33mThe node[39;49;00m[33m%s[39;49;00m[33m has [39;49;00m[33m%d[39;49;00m[33m child nodes, not one[39;49;00m[33m'[39;49;00m % (xpath, [96mlen[39;49;00m(node))[90m[39;49;00m
-                        assert_node(node[[94m0[39;49;00m], [96mcls[39;49;00m[[94m1[39;49;00m:], xpath=xpath + [33m"[39;49;00m[33m[0][39;49;00m[33m"[39;49;00m, **kwargs)[90m[39;49;00m
-            [94melif[39;49;00m [96misinstance[39;49;00m([96mcls[39;49;00m, [96mtuple[39;49;00m):[90m[39;49;00m
-                [94massert[39;49;00m [96misinstance[39;49;00m(node, ([96mlist[39;49;00m, nodes.Element)), \
-                    [33m'[39;49;00m[33mThe node[39;49;00m[33m%s[39;49;00m[33m does not have any items[39;49;00m[33m'[39;49;00m % xpath[90m[39;49;00m
-                [94massert[39;49;00m [96mlen[39;49;00m(node) == [96mlen[39;49;00m([96mcls[39;49;00m), \
-                    [33m'[39;49;00m[33mThe node[39;49;00m[33m%s[39;49;00m[33m has [39;49;00m[33m%d[39;49;00m[33m child nodes, not [39;49;00m[33m%r[39;49;00m[33m'[39;49;00m % (xpath, [96mlen[39;49;00m(node), [96mlen[39;49;00m([96mcls[39;49;00m))[90m[39;49;00m
-                [94mfor[39;49;00m i, nodecls [95min[39;49;00m [96menumerate[39;49;00m([96mcls[39;49;00m):[90m[39;49;00m
-                    path = xpath + [33m"[39;49;00m[33m[[39;49;00m[33m%d[39;49;00m[33m][39;49;00m[33m"[39;49;00m % i[90m[39;49;00m
-                    assert_node(node[i], nodecls, xpath=path, **kwargs)[90m[39;49;00m
-            [94melif[39;49;00m [96misinstance[39;49;00m([96mcls[39;49;00m, [96mstr[39;49;00m):[90m[39;49;00m
->               [94massert[39;49;00m node == [96mcls[39;49;00m, [33m'[39;49;00m[33mThe node [39;49;00m[33m%r[39;49;00m[33m is not [39;49;00m[33m%r[39;49;00m[33m: [39;49;00m[33m%r[39;49;00m[33m'[39;49;00m % (xpath, [96mcls[39;49;00m, node)[90m[39;49;00m
-[1m[31mE               AssertionError: The node '[0][0]' is not 'params': <#text: 'str'>[0m
-
-[1m[31msphinx/testing/util.py[0m:70: AssertionError
------------------------------ Captured stdout call -----------------------------
-<document source="/tmp/pytest-of-root/pytest-0/root/index.rst"><target ids="['module-example']" ismod="True"/><index entries="[('pair', 'module; example', 'module-example', '', None)]"/><index entries="[('single', 'Class (class in example)', 'example.Class', '', None)]"/><desc classes="py class" desctype="class" domain="py" noindex="False" objtype="class"><desc_signature class="" classes="sig sig-object" fullname="Class" ids="example.Class" module="example"><desc_annotation xml:space="preserve">class </desc_annotation><desc_addname classes="sig-prename descclassname" xml:space="preserve">example.</desc_addname><desc_name classes="sig-name descname" xml:space="preserve">Class</desc_name></desc_signature><desc_content><field_list><field><field_name>Parameters</field_name><field_body><bullet_list><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">name</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="str" reftype="class"><literal_emphasis>str</literal_emphasis></pending_xref>) -- blah blah</paragraph></list_item><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">age</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="int" reftype="class"><literal_emphasis>int</literal_emphasis></pending_xref>) -- blah blah</paragraph></list_item><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">items</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="Tuple" reftype="class"><literal_emphasis>Tuple</literal_emphasis></pending_xref><literal_emphasis>[</literal_emphasis><pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="str" reftype="class"><literal_emphasis>str</literal_emphasis></pending_xref><literal_emphasis>, </literal_emphasis><literal_emphasis>...</literal_emphasis><literal_emphasis>]</literal_emphasis>) -- blah blah</paragraph></list_item><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">str</literal_strong><literal_strong>] </literal_strong><literal_strong py:class="Class" py:module="example" refspecific="True">params</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="Dict" reftype="class"><literal_emphasis>Dict</literal_emphasis></pending_xref><literal_emphasis>[</literal_emphasis><pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="str" reftype="class"><literal_emphasis>str</literal_emphasis></pending_xref><literal_emphasis>,</literal_emphasis>) -- blah blah</paragraph></list_item></bullet_list></field_body></field></field_list></desc_content></desc></document>
---------------------------- Captured stdout teardown ---------------------------
-# testroot: root
-# builder: html
-# srcdir: /tmp/pytest-of-root/pytest-0/root
-# outdir: /tmp/pytest-of-root/pytest-0/root/_build/html
-# status: 
-[01mRunning Sphinx v4.1.0[39;49;00m
-
-# warning: 
+tests/test_domain_py.py [32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[33m    [100%][0m
 
 [33m=============================== warnings summary ===============================[0m
 sphinx/util/docutils.py:44
@@ -1075,6 +920,19 @@ tests/test_domain_py.py::test_python_python_use_unqualified_type_names_disabled
 # warning: 
 [91m/tmp/pytest-of-root/pytest-0/root/index.rst:3: WARNING: duplicate object description of _io.StringIO, other instance in index, use :noindex: for one of them[39;49;00m
 
+[32m[1m_____________________________ test_info_field_list _____________________________[0m
+----------------------------- Captured stdout call -----------------------------
+<document source="/tmp/pytest-of-root/pytest-0/root/index.rst"><target ids="['module-example']" ismod="True"/><index entries="[('pair', 'module; example', 'module-example', '', None)]"/><index entries="[('single', 'Class (class in example)', 'example.Class', '', None)]"/><desc classes="py class" desctype="class" domain="py" noindex="False" objtype="class"><desc_signature class="" classes="sig sig-object" fullname="Class" ids="example.Class" module="example"><desc_annotation xml:space="preserve">class </desc_annotation><desc_addname classes="sig-prename descclassname" xml:space="preserve">example.</desc_addname><desc_name classes="sig-name descname" xml:space="preserve">Class</desc_name></desc_signature><desc_content><field_list><field><field_name>Parameters</field_name><field_body><bullet_list><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">name</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="str" reftype="class"><literal_emphasis>str</literal_emphasis></pending_xref>) -- blah blah</paragraph></list_item><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">age</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="int" reftype="class"><literal_emphasis>int</literal_emphasis></pending_xref>) -- blah blah</paragraph></list_item><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">items</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="Tuple" reftype="class"><literal_emphasis>Tuple</literal_emphasis></pending_xref><literal_emphasis>[</literal_emphasis><pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="str" reftype="class"><literal_emphasis>str</literal_emphasis></pending_xref><literal_emphasis>, </literal_emphasis><literal_emphasis>...</literal_emphasis><literal_emphasis>]</literal_emphasis>) -- blah blah</paragraph></list_item><list_item><paragraph><literal_strong py:class="Class" py:module="example" refspecific="True">params</literal_strong> (<pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="Dict" reftype="class"><literal_emphasis>Dict</literal_emphasis></pending_xref><literal_emphasis>[</literal_emphasis><pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="str" reftype="class"><literal_emphasis>str</literal_emphasis></pending_xref><literal_emphasis>, </literal_emphasis><pending_xref py:class="Class" py:module="example" refdomain="py" refexplicit="False" refspecific="True" reftarget="str" reftype="class"><literal_emphasis>str</literal_emphasis></pending_xref><literal_emphasis>]</literal_emphasis>) -- blah blah</paragraph></list_item></bullet_list></field_body></field></field_list></desc_content></desc></document>
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/root
+# outdir: /tmp/pytest-of-root/pytest-0/root/_build/html
+# status: 
+[01mRunning Sphinx v4.1.0[39;49;00m
+
+# warning: 
+
 --------------------------- Captured stdout teardown ---------------------------
 # testroot: root
 # builder: html
@@ -1220,30 +1078,30 @@ The dummy builder generates no files.
 
 ============================= slowest 25 durations =============================
 0.27s setup    tests/test_domain_py.py::test_domain_py_xrefs
-0.19s call     tests/test_domain_py.py::test_domain_py_canonical
-0.15s call     tests/test_domain_py.py::test_domain_py_xrefs_abbreviations
+0.18s call     tests/test_domain_py.py::test_domain_py_canonical
 0.15s call     tests/test_domain_py.py::test_resolve_xref_for_properties
-0.09s call     tests/test_domain_py.py::test_python_python_use_unqualified_type_names_disabled
+0.15s call     tests/test_domain_py.py::test_domain_py_xrefs_abbreviations
 0.08s call     tests/test_domain_py.py::test_python_python_use_unqualified_type_names
+0.08s call     tests/test_domain_py.py::test_python_python_use_unqualified_type_names_disabled
 0.07s call     tests/test_domain_py.py::test_domain_py_xrefs
 0.06s setup    tests/test_domain_py.py::test_parse_annotation
-0.03s setup    tests/test_domain_py.py::test_info_field_list_var
+0.03s call     tests/test_domain_py.py::test_noindexentry
 0.03s setup    tests/test_domain_py.py::test_resolve_xref_for_properties
-0.01s setup    tests/test_domain_py.py::test_module_index_not_collapsed
-0.01s setup    tests/test_domain_py.py::test_pyfunction_with_union_type_operator
-0.01s setup    tests/test_domain_py.py::test_pyclass_options
-0.01s setup    tests/test_domain_py.py::test_pyfunction_with_number_literals
-0.01s setup    tests/test_domain_py.py::test_pyobject_prefix
-0.01s setup    tests/test_domain_py.py::test_pymethod_options
-0.01s setup    tests/test_domain_py.py::test_module_index_submodule
-0.01s setup    tests/test_domain_py.py::test_canonical_definition_skip
 0.01s setup    tests/test_domain_py.py::test_domain_py_xrefs_abbreviations
-0.01s setup    tests/test_domain_py.py::test_modindex_common_prefix
+0.01s setup    tests/test_domain_py.py::test_pyobject_prefix
+0.01s setup    tests/test_domain_py.py::test_pyclass_options
 0.01s setup    tests/test_domain_py.py::test_pyfunction_signature_full_py38
-0.01s setup    tests/test_domain_py.py::test_canonical_duplicated
-0.01s setup    tests/test_domain_py.py::test_optional_pyfunction_signature
-0.01s setup    tests/test_domain_py.py::test_noindexentry
+0.01s setup    tests/test_domain_py.py::test_pyfunction_with_union_type_operator
+0.01s setup    tests/test_domain_py.py::test_info_field_list_var
 0.01s setup    tests/test_domain_py.py::test_pyfunction_signature
+0.01s setup    tests/test_domain_py.py::test_canonical_duplicated
+0.01s setup    tests/test_domain_py.py::test_module_index
+0.01s setup    tests/test_domain_py.py::test_info_field_list
+0.01s setup    tests/test_domain_py.py::test_pyfunction_with_number_literals
+0.01s setup    tests/test_domain_py.py::test_module_index_not_collapsed
+0.01s setup    tests/test_domain_py.py::test_pyclassmethod
+0.01s setup    tests/test_domain_py.py::test_pyfunction_signature_full
+0.01s setup    tests/test_domain_py.py::test_exceptions_module_is_ignored
 [36m[1m=========================== short test summary info ============================[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_function_signatures[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_domain_py_xrefs[0m
@@ -1280,6 +1138,7 @@ The dummy builder generates no files.
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_canonical_definition_overrides[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_canonical_definition_skip[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_canonical_duplicated[0m
+[32mPASSED[0m tests/test_domain_py.py::[1mtest_info_field_list[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_info_field_list_var[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_module_index[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_module_index_submodule[0m
@@ -1289,11 +1148,10 @@ The dummy builder generates no files.
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_python_python_use_unqualified_type_names[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_python_python_use_unqualified_type_names_disabled[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_warn_missing_reference[0m
-[31mFAILED[0m tests/test_domain_py.py::[1mtest_info_field_list[0m - AssertionError: The node '[0][0]' is not 'params': <#text: 'str'>
-[31m================== [31m[1m1 failed[0m, [32m44 passed[0m, [33m192 warnings[0m[31m in 1.87s[0m[31m ==================[0m
-py39: exit 1 (2.39 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_domain_py.py pid=81
-  py39: FAIL code 1 (2.41=setup[0.02]+cmd[2.39] seconds)
-  evaluation failed :( (2.48 seconds)
+[33m======================= [32m45 passed[0m, [33m[1m192 warnings[0m[33m in 1.72s[0m[33m =======================[0m
+py39: exit 0 (2.22 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_domain_py.py pid=81
+  py39: OK (2.24=setup[0.02]+cmd[2.22] seconds)
+  congratulations :) (2.30 seconds)
 + : '>>>>> End Test Output'
 + git checkout 567ff22716ac258b9edd2c1711d766b440ac0b11 tests/test_domain_py.py
 Updated 1 path from a47fb89c6

@@ -137,10 +137,6 @@ Changes not staged for commit:
   (use "git restore <file>..." to discard changes in working directory)
 	modified:   django/contrib/staticfiles/storage.py
 
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-	temp_file.txt
-
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
 commit 0027a62b0b3ec774b8abb3ef10b76f607793eb92
@@ -150,89 +146,36 @@ Date:   Wed Sep 10 11:44:44 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 179ee13eb37348cd87169a198aec18fedccc8668
 diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
-index 494890cc23..2e063bcbe0 100644
+index 494890cc23..6abceffc8b 100644
 --- a/django/contrib/staticfiles/storage.py
 +++ b/django/contrib/staticfiles/storage.py
-@@ -248,79 +248,6 @@ class HashedFilesMixin:
-         # Store the processed paths
-         self.hashed_files.update(hashed_files)
+@@ -228,7 +228,14 @@ class HashedFilesMixin:
+         ]
+         # Do a single pass first. Post-process all files once, then repeat for
+         # adjustable files.
++        # Track which original files we've yielded so we don't report duplicates
++        # when multiple internal passes are required to resolve nested refs.
++        yielded = set()
+         for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
++            if name in yielded:
++                # Don't yield duplicate notifications, but continue processing.
++                continue
++            yielded.add(name)
+             yield name, hashed_name, processed
  
--    def _post_process(self, paths, adjustable_paths, hashed_files):
--        # Sort the files by directory level
--        def path_level(name):
--            return len(name.split(os.sep))
--
--        for name in sorted(paths, key=path_level, reverse=True):
--            substitutions = True
--            # use the original, local file, not the copied-but-unprocessed
--            # file, which might be somewhere far away, like S3
--            storage, path = paths[name]
--            with storage.open(path) as original_file:
--                cleaned_name = self.clean_name(name)
--                hash_key = self.hash_key(cleaned_name)
--
--                # generate the hash with the original content, even for
--                # adjustable files.
--                if hash_key not in hashed_files:
--                    hashed_name = self.hashed_name(name, original_file)
--                else:
--                    hashed_name = hashed_files[hash_key]
--
--                # then get the original's file content..
--                if hasattr(original_file, 'seek'):
--                    original_file.seek(0)
--
--                hashed_file_exists = self.exists(hashed_name)
--                processed = False
--
--                # ..to apply each replacement pattern to the content
--                if name in adjustable_paths:
--                    old_hashed_name = hashed_name
--                    content = original_file.read().decode('utf-8')
--                    for extension, patterns in self._patterns.items():
--                        if matches_patterns(path, (extension,)):
--                            for pattern, template in patterns:
--                                converter = self.url_converter(name, hashed_files, template)
--                                try:
--                                    content = pattern.sub(converter, content)
--                                except ValueError as exc:
--                                    yield name, None, exc, False
--                    if hashed_file_exists:
--                        self.delete(hashed_name)
--                    # then save the processed result
--                    content_file = ContentFile(content.encode())
--                    if self.keep_intermediate_files:
--                        # Save intermediate file for reference
--                        self._save(hashed_name, content_file)
--                    hashed_name = self.hashed_name(name, content_file)
--
--                    if self.exists(hashed_name):
--                        self.delete(hashed_name)
--
--                    saved_name = self._save(hashed_name, content_file)
--                    hashed_name = self.clean_name(saved_name)
--                    # If the file hash stayed the same, this file didn't change
--                    if old_hashed_name == hashed_name:
--                        substitutions = False
--                    processed = True
--
--                if not processed:
--                    # or handle the case in which neither processing nor
--                    # a change to the original file happened
--                    if not hashed_file_exists:
--                        processed = True
--                        saved_name = self._save(hashed_name, original_file)
--                        hashed_name = self.clean_name(saved_name)
--
--                # and then set the cache accordingly
--                hashed_files[hash_key] = hashed_name
--
--                yield name, hashed_name, processed, substitutions
--
--    def clean_name(self, name):
-         return name.replace('\\', '/')
+         paths = {path: paths[path] for path in adjustable_paths}
+@@ -236,7 +243,10 @@ class HashedFilesMixin:
+         for i in range(self.max_post_process_passes):
+             substitutions = False
+             for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
+-                yield name, hashed_name, processed
++                # Only report each original file once.
++                if name not in yielded:
++                    yielded.add(name)
++                    yield name, hashed_name, processed
+                 substitutions = substitutions or subst
  
-     def hash_key(self, name):
+             if not substitutions:
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -374,8 +317,8 @@ Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/test
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-4.0-0.editable-py3-none-any.whl size=25589 sha256=9ce2583207b8e93654685628a1a98496206f7efc0e7a6d1ee5adc9c2007c9aea
-  Stored in directory: /tmp/pip-ephem-wheel-cache-vzxglxkd/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+  Created wheel for Django: filename=django-4.0-0.editable-py3-none-any.whl size=25589 sha256=b8235aa64489550df2d868712d552170e37ce748062bd2a90f8d03b1d10098b9
+  Stored in directory: /tmp/pip-ephem-wheel-cache-rnibhnhm/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -395,795 +338,48 @@ test_file_change_after_collectstatic (staticfiles_tests.test_storage.TestCollect
 Importing application staticfiles_tests
 Skipping setup of unused database(s): default, other.
 System check identified no issues (0 silenced).
-ERROR
-test_clear_empties_manifest (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_css_import_case_insensitive (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_import_loop (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
+ok
+test_clear_empties_manifest (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_css_import_case_insensitive (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_import_loop (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
 test_import_replacement (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-See #18050 ... ERROR
-test_intermediate_files (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_loaded_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_manifest_does_not_exist (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_manifest_does_not_ignore_permission_error (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_manifest_exists (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_missing_entry (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_parse_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_path_ignored_completely (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_path_with_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_path_with_querystring (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_path_with_querystring_and_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
+See #18050 ... ok
+test_intermediate_files (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_loaded_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_manifest_does_not_exist (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_manifest_does_not_ignore_permission_error (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_manifest_exists (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_missing_entry (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_parse_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_ignored_completely (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_with_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_with_querystring (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_with_querystring_and_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
 test_post_processing (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-post_processing behaves correctly. ... ERROR
+post_processing behaves correctly. ... ok
 test_post_processing_failure (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-post_processing indicates the origin of the error when it fails. ... ERROR
-test_template_tag_absolute (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
+post_processing indicates the origin of the error when it fails. ... ok
+test_template_tag_absolute (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
 test_template_tag_absolute_root (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-Like test_template_tag_absolute, but for a file in STATIC_ROOT (#26249). ... ERROR
-test_template_tag_deep_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_template_tag_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_template_tag_return (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_template_tag_url (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ERROR
-test_hashed_name (staticfiles_tests.test_storage.TestCollectionNoneHashStorage) ... ERROR
-test_template_tag_return (staticfiles_tests.test_storage.TestCollectionSimpleStorage) ... ERROR
-test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionSimpleStorage) ... ERROR
+Like test_template_tag_absolute, but for a file in STATIC_ROOT (#26249). ... ok
+test_template_tag_deep_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_return (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_url (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_hashed_name (staticfiles_tests.test_storage.TestCollectionNoneHashStorage) ... ok
+test_template_tag_return (staticfiles_tests.test_storage.TestCollectionSimpleStorage) ... ok
+test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionSimpleStorage) ... ok
 test_multi_extension_patterns (staticfiles_tests.test_storage.TestExtraPatternsStorage)
-With storage classes having several file extension patterns, only the ... ERROR
+With storage classes having several file extension patterns, only the ... ok
 test_collect_static_files_default_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
 test_collect_static_files_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
 test_collect_static_files_subclass_of_static_storage (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
 
-======================================================================
-ERROR: test_file_change_after_collectstatic (staticfiles_tests.test_storage.TestCollectionHashedFilesCache)
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 530, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
+Ran 32 tests in 0.388s
 
-======================================================================
-ERROR: test_clear_empties_manifest (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_css_import_case_insensitive (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_import_loop (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_import_replacement (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-See #18050
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_intermediate_files (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_loaded_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_manifest_does_not_exist (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_manifest_does_not_ignore_permission_error (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_manifest_exists (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_missing_entry (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_parse_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_path_ignored_completely (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_path_with_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_path_with_querystring (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_path_with_querystring_and_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_post_processing (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-post_processing behaves correctly.
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_post_processing_failure (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-post_processing indicates the origin of the error when it fails.
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_absolute (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_absolute_root (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-Like test_template_tag_absolute, but for a file in STATIC_ROOT (#26249).
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_deep_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_return (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_url (staticfiles_tests.test_storage.TestCollectionManifestStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 273, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 32, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ManifestStaticFilesStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_hashed_name (staticfiles_tests.test_storage.TestCollectionNoneHashStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'NoneHashStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_return (staticfiles_tests.test_storage.TestCollectionSimpleStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 407, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'SimpleStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionSimpleStorage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 407, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'SimpleStorage' object has no attribute '_post_process'
-
-======================================================================
-ERROR: test_multi_extension_patterns (staticfiles_tests.test_storage.TestExtraPatternsStorage)
-With storage classes having several file extension patterns, only the
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/staticfiles_tests/test_storage.py", line 240, in setUp
-    super().setUp()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 73, in setUp
-    self.run_collectstatic()
-  File "/testbed/tests/staticfiles_tests/cases.py", line 85, in run_collectstatic
-    call_command('collectstatic', interactive=False, verbosity=verbosity,
-  File "/testbed/django/core/management/__init__.py", line 181, in call_command
-    return command.execute(*args, **defaults)
-  File "/testbed/django/core/management/base.py", line 398, in execute
-    output = self.handle(*args, **options)
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 187, in handle
-    collected = self.collect()
-  File "/testbed/django/contrib/staticfiles/management/commands/collectstatic.py", line 128, in collect
-    for original_path, processed_path, processed in processor:
-  File "/testbed/django/contrib/staticfiles/storage.py", line 326, in post_process
-    yield from super().post_process(*args, **kwargs)
-  File "/testbed/django/contrib/staticfiles/storage.py", line 231, in post_process
-    for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-AttributeError: 'ExtraPatternsStorage' object has no attribute '_post_process'
-
-----------------------------------------------------------------------
-Ran 32 tests in 0.149s
-
-FAILED (errors=29)
+OK
 + : '>>>>> End Test Output'
 + git checkout 179ee13eb37348cd87169a198aec18fedccc8668 tests/staticfiles_tests/test_storage.py
 Updated 1 path from b7fb8bd4e8

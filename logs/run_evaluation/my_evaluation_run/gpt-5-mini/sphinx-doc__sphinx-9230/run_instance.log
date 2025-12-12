@@ -1,93 +1,69 @@
-2025-12-11 16:14:13,264 - INFO - Creating container for sphinx-doc__sphinx-9230...
-2025-12-11 16:14:13,299 - INFO - Container for sphinx-doc__sphinx-9230 created: a55a082f4a1cad365cd15659d9f6bbdc6640005f67e169807191008674a47bbe
-2025-12-11 16:14:13,359 - INFO - Container for sphinx-doc__sphinx-9230 started: a55a082f4a1cad365cd15659d9f6bbdc6640005f67e169807191008674a47bbe
-2025-12-11 16:14:13,359 - INFO - Intermediate patch for sphinx-doc__sphinx-9230 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9230/patch.diff, now applying to container...
-2025-12-11 16:14:13,447 - INFO - >>>>> Applied Patch:
-Checking patch sphinx/ext/napoleon/docstring.py...
-Checking patch temp_file.txt...
-Applied patch sphinx/ext/napoleon/docstring.py cleanly.
-Applied patch temp_file.txt cleanly.
+2025-12-11 20:35:39,353 - INFO - Creating container for sphinx-doc__sphinx-9230...
+2025-12-11 20:35:39,384 - INFO - Container for sphinx-doc__sphinx-9230 created: 4ff3bda4f69fcaaf167d250f481981616726d35cfdae0cef9b8be75c3937fb0f
+2025-12-11 20:35:39,587 - INFO - Container for sphinx-doc__sphinx-9230 started: 4ff3bda4f69fcaaf167d250f481981616726d35cfdae0cef9b8be75c3937fb0f
+2025-12-11 20:35:39,587 - INFO - Intermediate patch for sphinx-doc__sphinx-9230 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9230/patch.diff, now applying to container...
+2025-12-11 20:35:39,766 - INFO - >>>>> Applied Patch:
+Checking patch sphinx/util/docfields.py...
+Applied patch sphinx/util/docfields.py cleanly.
 
-2025-12-11 16:14:13,616 - INFO - Git diff before:
-diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
-index d8cb75a5f..208b01e59 100644
---- a/sphinx/ext/napoleon/docstring.py
-+++ b/sphinx/ext/napoleon/docstring.py
-@@ -256,31 +256,6 @@ class GoogleDocstring:
-             line = self._line_iter.peek()
-         return lines
+2025-12-11 20:35:39,965 - INFO - Git diff before:
+diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
+index 3a3367ebe..4a8d55e2d 100644
+--- a/sphinx/util/docfields.py
++++ b/sphinx/util/docfields.py
+@@ -297,13 +297,17 @@ class DocFieldTransformer:
  
--    def _consume_field(self, parse_type: bool = True, prefer_type: bool = False
--                       ) -> Tuple[str, str, List[str]]:
--        line = next(self._line_iter)
--
--        before, colon, after = self._partition_field_on_colon(line)
--        _name, _type, _desc = before, '', after
--
--        if parse_type:
--            match = _google_typed_arg_regex.match(before)
--            if match:
--                _name = match.group(1).strip()
--                _type = match.group(2)
--
--        _name = self._escape_args_and_kwargs(_name)
--
--        if prefer_type and not _type:
--            _type, _name = _name, _type
--
--        if _type and self._config.napoleon_preprocess_types:
--            _type = _convert_type_spec(_type, self._config.napoleon_type_aliases or {})
--
--        indent = self._get_indent(line) + 1
--        _descs = [_desc] + self._dedent(self._consume_indented_block(indent))
--        _descs = self.__class__(_descs, self._config).lines()
--        return _name, _type, _descs
+             # also support syntax like ``:param type name:``
+             if typedesc.is_typed:
++                # support syntax like ``:param type name:`` where the type
++                # itself may contain whitespace (for example "dict(str, str)"),
++                # so split from the right to get the argument name as the
++                # last token and treat the rest as the type.
+                 try:
+-                    argtype, argname = fieldarg.split(None, 1)
++                    argtype, argname = fieldarg.rsplit(None, 1)
+                 except ValueError:
++                    # couldn't split into type and name; leave as-is
+                     pass
+                 else:
+-                    types.setdefault(typename, {})[argname] = \
+-                        [nodes.Text(argtype)]
++                    types.setdefault(typename, {})[argname] = [nodes.Text(argtype)]
+                     fieldarg = argname
  
-     def _consume_fields(self, parse_type: bool = True, prefer_type: bool = False,
-                         multiple: bool = False) -> List[Tuple[str, str, List[str]]]:
-2025-12-11 16:14:13,616 - INFO - Eval script for sphinx-doc__sphinx-9230 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9230/eval.sh; copying to container...
-2025-12-11 16:14:18,479 - INFO - Test runtime: 4.81 seconds
-2025-12-11 16:14:18,480 - INFO - Test output for sphinx-doc__sphinx-9230 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9230/test_output.txt
-2025-12-11 16:14:18,577 - INFO - Git diff after:
-diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
-index d8cb75a5f..208b01e59 100644
---- a/sphinx/ext/napoleon/docstring.py
-+++ b/sphinx/ext/napoleon/docstring.py
-@@ -256,31 +256,6 @@ class GoogleDocstring:
-             line = self._line_iter.peek()
-         return lines
+             translatable_content = nodes.inline(field_body.rawsource,
+2025-12-11 20:35:39,966 - INFO - Eval script for sphinx-doc__sphinx-9230 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9230/eval.sh; copying to container...
+2025-12-11 20:35:44,780 - INFO - Test runtime: 4.77 seconds
+2025-12-11 20:35:44,780 - INFO - Test output for sphinx-doc__sphinx-9230 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9230/test_output.txt
+2025-12-11 20:35:44,862 - INFO - Git diff after:
+diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
+index 3a3367ebe..4a8d55e2d 100644
+--- a/sphinx/util/docfields.py
++++ b/sphinx/util/docfields.py
+@@ -297,13 +297,17 @@ class DocFieldTransformer:
  
--    def _consume_field(self, parse_type: bool = True, prefer_type: bool = False
--                       ) -> Tuple[str, str, List[str]]:
--        line = next(self._line_iter)
--
--        before, colon, after = self._partition_field_on_colon(line)
--        _name, _type, _desc = before, '', after
--
--        if parse_type:
--            match = _google_typed_arg_regex.match(before)
--            if match:
--                _name = match.group(1).strip()
--                _type = match.group(2)
--
--        _name = self._escape_args_and_kwargs(_name)
--
--        if prefer_type and not _type:
--            _type, _name = _name, _type
--
--        if _type and self._config.napoleon_preprocess_types:
--            _type = _convert_type_spec(_type, self._config.napoleon_type_aliases or {})
--
--        indent = self._get_indent(line) + 1
--        _descs = [_desc] + self._dedent(self._consume_indented_block(indent))
--        _descs = self.__class__(_descs, self._config).lines()
--        return _name, _type, _descs
+             # also support syntax like ``:param type name:``
+             if typedesc.is_typed:
++                # support syntax like ``:param type name:`` where the type
++                # itself may contain whitespace (for example "dict(str, str)"),
++                # so split from the right to get the argument name as the
++                # last token and treat the rest as the type.
+                 try:
+-                    argtype, argname = fieldarg.split(None, 1)
++                    argtype, argname = fieldarg.rsplit(None, 1)
+                 except ValueError:
++                    # couldn't split into type and name; leave as-is
+                     pass
+                 else:
+-                    types.setdefault(typename, {})[argname] = \
+-                        [nodes.Text(argtype)]
++                    types.setdefault(typename, {})[argname] = [nodes.Text(argtype)]
+                     fieldarg = argname
  
-     def _consume_fields(self, parse_type: bool = True, prefer_type: bool = False,
-                         multiple: bool = False) -> List[Tuple[str, str, List[str]]]:
-2025-12-11 16:14:18,577 - INFO - Grading answer for sphinx-doc__sphinx-9230...
-2025-12-11 16:14:18,581 - INFO - report: {'sphinx-doc__sphinx-9230': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['tests/test_domain_py.py::test_info_field_list']}, 'PASS_TO_PASS': {'success': ['tests/test_domain_py.py::test_function_signatures', 'tests/test_domain_py.py::test_domain_py_xrefs', 'tests/test_domain_py.py::test_domain_py_xrefs_abbreviations', 'tests/test_domain_py.py::test_domain_py_objects', 'tests/test_domain_py.py::test_resolve_xref_for_properties', 'tests/test_domain_py.py::test_domain_py_find_obj', 'tests/test_domain_py.py::test_domain_py_canonical', 'tests/test_domain_py.py::test_get_full_qualified_name', 'tests/test_domain_py.py::test_parse_annotation', 'tests/test_domain_py.py::test_pyfunction_signature', 'tests/test_domain_py.py::test_pyfunction_signature_full', 'tests/test_domain_py.py::test_pyfunction_signature_full_py38', 'tests/test_domain_py.py::test_pyfunction_with_number_literals', 'tests/test_domain_py.py::test_pyfunction_with_union_type_operator', 'tests/test_domain_py.py::test_optional_pyfunction_signature', 'tests/test_domain_py.py::test_pyexception_signature', 'tests/test_domain_py.py::test_exceptions_module_is_ignored', 'tests/test_domain_py.py::test_pydata_signature', 'tests/test_domain_py.py::test_pydata_signature_old', 'tests/test_domain_py.py::test_pydata_with_union_type_operator', 'tests/test_domain_py.py::test_pyobject_prefix', 'tests/test_domain_py.py::test_pydata', 'tests/test_domain_py.py::test_pyfunction', 'tests/test_domain_py.py::test_pyclass_options', 'tests/test_domain_py.py::test_pymethod_options', 'tests/test_domain_py.py::test_pyclassmethod', 'tests/test_domain_py.py::test_pystaticmethod', 'tests/test_domain_py.py::test_pyattribute', 'tests/test_domain_py.py::test_pyproperty', 'tests/test_domain_py.py::test_pydecorator_signature', 'tests/test_domain_py.py::test_pydecoratormethod_signature', 'tests/test_domain_py.py::test_canonical', 'tests/test_domain_py.py::test_canonical_definition_overrides', 'tests/test_domain_py.py::test_canonical_definition_skip', 'tests/test_domain_py.py::test_canonical_duplicated', 'tests/test_domain_py.py::test_info_field_list_var', 'tests/test_domain_py.py::test_module_index', 'tests/test_domain_py.py::test_module_index_submodule', 'tests/test_domain_py.py::test_module_index_not_collapsed', 'tests/test_domain_py.py::test_modindex_common_prefix', 'tests/test_domain_py.py::test_noindexentry', 'tests/test_domain_py.py::test_python_python_use_unqualified_type_names', 'tests/test_domain_py.py::test_python_python_use_unqualified_type_names_disabled', 'tests/test_domain_py.py::test_warn_missing_reference'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
-Result for sphinx-doc__sphinx-9230: resolved: False
-2025-12-11 16:14:18,581 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-9230.my_evaluation_run...
-2025-12-11 16:14:33,707 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-9230.my_evaluation_run...
-2025-12-11 16:14:33,723 - INFO - Container sweb.eval.sphinx-doc__sphinx-9230.my_evaluation_run removed.
+             translatable_content = nodes.inline(field_body.rawsource,
+2025-12-11 20:35:44,862 - INFO - Grading answer for sphinx-doc__sphinx-9230...
+2025-12-11 20:35:44,870 - INFO - report: {'sphinx-doc__sphinx-9230': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['tests/test_domain_py.py::test_info_field_list'], 'failure': []}, 'PASS_TO_PASS': {'success': ['tests/test_domain_py.py::test_function_signatures', 'tests/test_domain_py.py::test_domain_py_xrefs', 'tests/test_domain_py.py::test_domain_py_xrefs_abbreviations', 'tests/test_domain_py.py::test_domain_py_objects', 'tests/test_domain_py.py::test_resolve_xref_for_properties', 'tests/test_domain_py.py::test_domain_py_find_obj', 'tests/test_domain_py.py::test_domain_py_canonical', 'tests/test_domain_py.py::test_get_full_qualified_name', 'tests/test_domain_py.py::test_parse_annotation', 'tests/test_domain_py.py::test_pyfunction_signature', 'tests/test_domain_py.py::test_pyfunction_signature_full', 'tests/test_domain_py.py::test_pyfunction_signature_full_py38', 'tests/test_domain_py.py::test_pyfunction_with_number_literals', 'tests/test_domain_py.py::test_pyfunction_with_union_type_operator', 'tests/test_domain_py.py::test_optional_pyfunction_signature', 'tests/test_domain_py.py::test_pyexception_signature', 'tests/test_domain_py.py::test_exceptions_module_is_ignored', 'tests/test_domain_py.py::test_pydata_signature', 'tests/test_domain_py.py::test_pydata_signature_old', 'tests/test_domain_py.py::test_pydata_with_union_type_operator', 'tests/test_domain_py.py::test_pyobject_prefix', 'tests/test_domain_py.py::test_pydata', 'tests/test_domain_py.py::test_pyfunction', 'tests/test_domain_py.py::test_pyclass_options', 'tests/test_domain_py.py::test_pymethod_options', 'tests/test_domain_py.py::test_pyclassmethod', 'tests/test_domain_py.py::test_pystaticmethod', 'tests/test_domain_py.py::test_pyattribute', 'tests/test_domain_py.py::test_pyproperty', 'tests/test_domain_py.py::test_pydecorator_signature', 'tests/test_domain_py.py::test_pydecoratormethod_signature', 'tests/test_domain_py.py::test_canonical', 'tests/test_domain_py.py::test_canonical_definition_overrides', 'tests/test_domain_py.py::test_canonical_definition_skip', 'tests/test_domain_py.py::test_canonical_duplicated', 'tests/test_domain_py.py::test_info_field_list_var', 'tests/test_domain_py.py::test_module_index', 'tests/test_domain_py.py::test_module_index_submodule', 'tests/test_domain_py.py::test_module_index_not_collapsed', 'tests/test_domain_py.py::test_modindex_common_prefix', 'tests/test_domain_py.py::test_noindexentry', 'tests/test_domain_py.py::test_python_python_use_unqualified_type_names', 'tests/test_domain_py.py::test_python_python_use_unqualified_type_names_disabled', 'tests/test_domain_py.py::test_warn_missing_reference'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sphinx-doc__sphinx-9230: resolved: True
+2025-12-11 20:35:44,870 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-9230.my_evaluation_run...
+2025-12-11 20:35:59,991 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-9230.my_evaluation_run...
+2025-12-11 20:36:00,003 - INFO - Container sweb.eval.sphinx-doc__sphinx-9230.my_evaluation_run removed.

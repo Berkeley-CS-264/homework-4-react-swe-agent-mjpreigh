@@ -1,95 +1,86 @@
-2025-12-11 16:14:13,072 - INFO - Creating container for psf__requests-2931...
-2025-12-11 16:14:13,096 - INFO - Container for psf__requests-2931 created: 1f3a57e44d84cfa96169ab16ef2aa93d0dfddc973c3de7fc5abb5ddebce76ef4
-2025-12-11 16:14:13,214 - INFO - Container for psf__requests-2931 started: 1f3a57e44d84cfa96169ab16ef2aa93d0dfddc973c3de7fc5abb5ddebce76ef4
-2025-12-11 16:14:13,214 - INFO - Intermediate patch for psf__requests-2931 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/psf__requests-2931/patch.diff, now applying to container...
-2025-12-11 16:14:13,350 - INFO - >>>>> Applied Patch:
+2025-12-11 20:35:33,583 - INFO - Creating container for psf__requests-2931...
+2025-12-11 20:35:33,607 - INFO - Container for psf__requests-2931 created: 6a55f6f7253002e0b6d343aaec2e12ec7417e9ec5ef5e22b623ece4423c43c5e
+2025-12-11 20:35:33,677 - INFO - Container for psf__requests-2931 started: 6a55f6f7253002e0b6d343aaec2e12ec7417e9ec5ef5e22b623ece4423c43c5e
+2025-12-11 20:35:33,678 - INFO - Intermediate patch for psf__requests-2931 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/psf__requests-2931/patch.diff, now applying to container...
+2025-12-11 20:35:33,781 - INFO - >>>>> Applied Patch:
 Checking patch requests/models.py...
-Checking patch temp_file.txt...
+Checking patch test_requests.py...
 Applied patch requests/models.py cleanly.
-Applied patch temp_file.txt cleanly.
+Applied patch test_requests.py cleanly.
 
-2025-12-11 16:14:13,431 - INFO - Git diff before:
+2025-12-11 20:35:33,885 - INFO - Git diff before:
 diff --git a/requests/models.py b/requests/models.py
-index 9c624d3..5638572 100644
+index 9c624d3..da9c7a9 100644
 --- a/requests/models.py
 +++ b/requests/models.py
-@@ -71,32 +71,6 @@ class RequestEncodingMixin(object):
+@@ -80,7 +80,11 @@ class RequestEncodingMixin(object):
+         if parameters are supplied as a dict.
+         """
  
-         return ''.join(url)
- 
--    @staticmethod
--    def _encode_params(data):
--        """Encode parameters in a piece of data.
--
--        Will successfully encode parameters when passed as a dict or a list of
--        2-tuples. Order is retained if data is a list of 2-tuples but arbitrary
--        if parameters are supplied as a dict.
--        """
--
 -        if isinstance(data, (str, bytes)):
--            return to_native_string(data)
--        elif hasattr(data, 'read'):
--            return data
--        elif hasattr(data, '__iter__'):
--            result = []
--            for k, vs in to_key_val_list(data):
--                if isinstance(vs, basestring) or not hasattr(vs, '__iter__'):
--                    vs = [vs]
--                for v in vs:
--                    if v is not None:
--                        result.append(
--                            (k.encode('utf-8') if isinstance(k, str) else k,
--                             v.encode('utf-8') if isinstance(v, str) else v))
--            return urlencode(result, doseq=True)
--        else:
--            return data
++        # If data is bytes, leave it alone — don't try to coerce bytes
++        # to native strings (which may attempt to decode using ASCII).
++        if isinstance(data, bytes):
++            return data
++        if isinstance(data, str):
+             return to_native_string(data)
+         elif hasattr(data, 'read'):
+             return data
+diff --git a/test_requests.py b/test_requests.py
+index 137edc0..0d8e2f0 100755
+--- a/test_requests.py
++++ b/test_requests.py
+@@ -49,9 +49,10 @@ else:
  
-     @staticmethod
-     def _encode_files(files, data):
-2025-12-11 16:14:13,432 - INFO - Eval script for psf__requests-2931 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/psf__requests-2931/eval.sh; copying to container...
-2025-12-11 16:14:16,400 - INFO - Test runtime: 2.91 seconds
-2025-12-11 16:14:16,401 - INFO - Test output for psf__requests-2931 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/psf__requests-2931/test_output.txt
-2025-12-11 16:14:16,470 - INFO - Git diff after:
+ 
+ @pytest.fixture
+-def httpbin(httpbin):
++def httpbin(request):
+     # Issue #1483: Make sure the URL always has a trailing slash
+-    httpbin_url = httpbin.url.rstrip('/') + '/'
++    base_httpbin = request.getfixturevalue('httpbin')
++    httpbin_url = base_httpbin.url.rstrip('/') + '/'
+ 
+     def inner(*suffix):
+         return urljoin(httpbin_url, '/'.join(suffix))
+@@ -60,9 +61,10 @@ def httpbin(httpbin):
+ 
+ 
+ @pytest.fixture
+-def httpsbin_url(httpbin_secure):
++def httpsbin_url(request):
+     # Issue #1483: Make sure the URL always has a trailing slash
+-    httpbin_url = httpbin_secure.url.rstrip('/') + '/'
++    base_httpbin_secure = request.getfixturevalue('httpbin_secure')
++    httpbin_url = base_httpbin_secure.url.rstrip('/') + '/'
+ 
+     def inner(*suffix):
+         return urljoin(httpbin_url, '/'.join(suffix))
+2025-12-11 20:35:33,885 - INFO - Eval script for psf__requests-2931 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/psf__requests-2931/eval.sh; copying to container...
+2025-12-11 20:35:37,109 - INFO - Test runtime: 3.19 seconds
+2025-12-11 20:35:37,110 - INFO - Test output for psf__requests-2931 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/psf__requests-2931/test_output.txt
+2025-12-11 20:35:37,183 - INFO - Git diff after:
 diff --git a/requests/models.py b/requests/models.py
-index 9c624d3..5638572 100644
+index 9c624d3..da9c7a9 100644
 --- a/requests/models.py
 +++ b/requests/models.py
-@@ -71,32 +71,6 @@ class RequestEncodingMixin(object):
+@@ -80,7 +80,11 @@ class RequestEncodingMixin(object):
+         if parameters are supplied as a dict.
+         """
  
-         return ''.join(url)
- 
--    @staticmethod
--    def _encode_params(data):
--        """Encode parameters in a piece of data.
--
--        Will successfully encode parameters when passed as a dict or a list of
--        2-tuples. Order is retained if data is a list of 2-tuples but arbitrary
--        if parameters are supplied as a dict.
--        """
--
 -        if isinstance(data, (str, bytes)):
--            return to_native_string(data)
--        elif hasattr(data, 'read'):
--            return data
--        elif hasattr(data, '__iter__'):
--            result = []
--            for k, vs in to_key_val_list(data):
--                if isinstance(vs, basestring) or not hasattr(vs, '__iter__'):
--                    vs = [vs]
--                for v in vs:
--                    if v is not None:
--                        result.append(
--                            (k.encode('utf-8') if isinstance(k, str) else k,
--                             v.encode('utf-8') if isinstance(v, str) else v))
--            return urlencode(result, doseq=True)
--        else:
--            return data
- 
-     @staticmethod
-     def _encode_files(files, data):
-2025-12-11 16:14:16,470 - INFO - Grading answer for psf__requests-2931...
-2025-12-11 16:14:16,479 - INFO - report: {'psf__requests-2931': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_requests.py::TestRequests::test_binary_put']}, 'PASS_TO_PASS': {'success': ['test_requests.py::TestRequests::test_entry_points', 'test_requests.py::TestRequests::test_invalid_url', 'test_requests.py::TestRequests::test_LocationParseError', 'test_requests.py::TestRequests::test_links', 'test_requests.py::TestRequests::test_cookie_parameters', 'test_requests.py::TestRequests::test_cookie_as_dict_keeps_len', 'test_requests.py::TestRequests::test_cookie_as_dict_keeps_items', 'test_requests.py::TestRequests::test_cookie_as_dict_keys', 'test_requests.py::TestRequests::test_cookie_as_dict_values', 'test_requests.py::TestRequests::test_cookie_as_dict_items', 'test_requests.py::TestRequests::test_response_is_iterable', 'test_requests.py::TestRequests::test_response_decode_unicode', 'test_requests.py::TestRequests::test_get_auth_from_url', 'test_requests.py::TestRequests::test_get_auth_from_url_encoded_spaces', 'test_requests.py::TestRequests::test_get_auth_from_url_not_encoded_spaces', 'test_requests.py::TestRequests::test_get_auth_from_url_percent_chars', 'test_requests.py::TestRequests::test_get_auth_from_url_encoded_hashes', 'test_requests.py::TestRequests::test_http_error', 'test_requests.py::TestRequests::test_transport_adapter_ordering', 'test_requests.py::TestRequests::test_nonhttp_schemes_dont_check_URLs', 'test_requests.py::TestRequests::test_basic_auth_str_is_always_native', 'test_requests.py::TestContentEncodingDetection::test_html4_pragma', 'test_requests.py::TestContentEncodingDetection::test_html_charset', 'test_requests.py::TestContentEncodingDetection::test_none', 'test_requests.py::TestContentEncodingDetection::test_precedence', 'test_requests.py::TestContentEncodingDetection::test_xhtml_pragma', 'test_requests.py::TestContentEncodingDetection::test_xml', 'test_requests.py::TestCaseInsensitiveDict::test_contains', 'test_requests.py::TestCaseInsensitiveDict::test_copy', 'test_requests.py::TestCaseInsensitiveDict::test_delitem', 'test_requests.py::TestCaseInsensitiveDict::test_docstring_example', 'test_requests.py::TestCaseInsensitiveDict::test_equality', 'test_requests.py::TestCaseInsensitiveDict::test_fixes_649', 'test_requests.py::TestCaseInsensitiveDict::test_get', 'test_requests.py::TestCaseInsensitiveDict::test_getitem', 'test_requests.py::TestCaseInsensitiveDict::test_iter', 'test_requests.py::TestCaseInsensitiveDict::test_iterable_init', 'test_requests.py::TestCaseInsensitiveDict::test_kwargs_init', 'test_requests.py::TestCaseInsensitiveDict::test_len', 'test_requests.py::TestCaseInsensitiveDict::test_lower_items', 'test_requests.py::TestCaseInsensitiveDict::test_mapping_init', 'test_requests.py::TestCaseInsensitiveDict::test_preserve_key_case', 'test_requests.py::TestCaseInsensitiveDict::test_preserve_last_key_case', 'test_requests.py::TestCaseInsensitiveDict::test_setdefault', 'test_requests.py::TestCaseInsensitiveDict::test_update', 'test_requests.py::TestCaseInsensitiveDict::test_update_retains_unchanged', 'test_requests.py::UtilsTestCase::test_address_in_network', 'test_requests.py::UtilsTestCase::test_dotted_netmask', 'test_requests.py::UtilsTestCase::test_get_auth_from_url', 'test_requests.py::UtilsTestCase::test_get_environ_proxies', 'test_requests.py::UtilsTestCase::test_get_environ_proxies_ip_ranges', 'test_requests.py::UtilsTestCase::test_guess_filename_when_filename_is_an_int', 'test_requests.py::UtilsTestCase::test_guess_filename_when_int', 'test_requests.py::UtilsTestCase::test_guess_filename_with_file_like_obj', 'test_requests.py::UtilsTestCase::test_guess_filename_with_unicode_name', 'test_requests.py::UtilsTestCase::test_is_ipv4_address', 'test_requests.py::UtilsTestCase::test_is_valid_cidr', 'test_requests.py::UtilsTestCase::test_requote_uri_properly_requotes', 'test_requests.py::UtilsTestCase::test_requote_uri_with_unquoted_percents', 'test_requests.py::UtilsTestCase::test_select_proxies', 'test_requests.py::UtilsTestCase::test_super_len_correctly_calculates_len_of_partially_read_file', 'test_requests.py::UtilsTestCase::test_super_len_io_streams', 'test_requests.py::TestMorselToCookieExpires::test_expires_invalid_int', 'test_requests.py::TestMorselToCookieExpires::test_expires_invalid_str', 'test_requests.py::TestMorselToCookieExpires::test_expires_none', 'test_requests.py::TestMorselToCookieExpires::test_expires_valid_str', 'test_requests.py::TestMorselToCookieMaxAge::test_max_age_invalid_str', 'test_requests.py::TestMorselToCookieMaxAge::test_max_age_valid_int', 'test_requests.py::test_prepared_request_empty_copy', 'test_requests.py::test_vendor_aliases'], 'failure': ['test_requests.py::TestRequests::test_basic_building', 'test_requests.py::TestRequests::test_path_is_not_double_encoded', 'test_requests.py::TestRequests::test_params_are_added_before_fragment', 'test_requests.py::TestRequests::test_params_original_order_is_preserved_by_default', 'test_requests.py::TestRequests::test_params_bytes_are_encoded', 'test_requests.py::TestRequests::test_connection_error_invalid_domain', 'test_requests.py::TestRequests::test_connection_error_invalid_port', 'test_requests.py::TestRequests::test_long_authinfo_in_url', 'test_requests.py::TestTimeout::test_connect_timeout', 'test_requests.py::TestTimeout::test_total_timeout_connect', 'test_requests.py::test_data_argument_accepts_tuples', 'test_requests.py::test_prepared_request_no_cookies_copy', 'test_requests.py::test_prepared_request_complete_copy', 'test_requests.py::test_prepare_unicode_url']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
++        # If data is bytes, leave it alone — don't try to coerce bytes
++        # to native strings (which may attempt to decode using ASCII).
++        if isinstance(data, bytes):
++            return data
++        if isinstance(data, str):
+             return to_native_string(data)
+         elif hasattr(data, 'read'):
+             return data
+2025-12-11 20:35:37,183 - INFO - Git diff changed after running eval script
+2025-12-11 20:35:37,183 - INFO - Grading answer for psf__requests-2931...
+2025-12-11 20:35:37,186 - INFO - report: {'psf__requests-2931': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_requests.py::TestRequests::test_binary_put'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_requests.py::TestRequests::test_entry_points', 'test_requests.py::TestRequests::test_invalid_url', 'test_requests.py::TestRequests::test_basic_building', 'test_requests.py::TestRequests::test_path_is_not_double_encoded', 'test_requests.py::TestRequests::test_params_are_added_before_fragment', 'test_requests.py::TestRequests::test_params_original_order_is_preserved_by_default', 'test_requests.py::TestRequests::test_connection_error_invalid_domain', 'test_requests.py::TestRequests::test_connection_error_invalid_port', 'test_requests.py::TestRequests::test_LocationParseError', 'test_requests.py::TestRequests::test_links', 'test_requests.py::TestRequests::test_cookie_parameters', 'test_requests.py::TestRequests::test_cookie_as_dict_keeps_len', 'test_requests.py::TestRequests::test_cookie_as_dict_keeps_items', 'test_requests.py::TestRequests::test_cookie_as_dict_keys', 'test_requests.py::TestRequests::test_cookie_as_dict_values', 'test_requests.py::TestRequests::test_cookie_as_dict_items', 'test_requests.py::TestRequests::test_response_is_iterable', 'test_requests.py::TestRequests::test_response_decode_unicode', 'test_requests.py::TestRequests::test_get_auth_from_url', 'test_requests.py::TestRequests::test_get_auth_from_url_encoded_spaces', 'test_requests.py::TestRequests::test_get_auth_from_url_not_encoded_spaces', 'test_requests.py::TestRequests::test_get_auth_from_url_percent_chars', 'test_requests.py::TestRequests::test_get_auth_from_url_encoded_hashes', 'test_requests.py::TestRequests::test_http_error', 'test_requests.py::TestRequests::test_transport_adapter_ordering', 'test_requests.py::TestRequests::test_long_authinfo_in_url', 'test_requests.py::TestRequests::test_nonhttp_schemes_dont_check_URLs', 'test_requests.py::TestRequests::test_basic_auth_str_is_always_native', 'test_requests.py::TestContentEncodingDetection::test_html4_pragma', 'test_requests.py::TestContentEncodingDetection::test_html_charset', 'test_requests.py::TestContentEncodingDetection::test_none', 'test_requests.py::TestContentEncodingDetection::test_precedence', 'test_requests.py::TestContentEncodingDetection::test_xhtml_pragma', 'test_requests.py::TestContentEncodingDetection::test_xml', 'test_requests.py::TestCaseInsensitiveDict::test_contains', 'test_requests.py::TestCaseInsensitiveDict::test_copy', 'test_requests.py::TestCaseInsensitiveDict::test_delitem', 'test_requests.py::TestCaseInsensitiveDict::test_docstring_example', 'test_requests.py::TestCaseInsensitiveDict::test_equality', 'test_requests.py::TestCaseInsensitiveDict::test_fixes_649', 'test_requests.py::TestCaseInsensitiveDict::test_get', 'test_requests.py::TestCaseInsensitiveDict::test_getitem', 'test_requests.py::TestCaseInsensitiveDict::test_iter', 'test_requests.py::TestCaseInsensitiveDict::test_iterable_init', 'test_requests.py::TestCaseInsensitiveDict::test_kwargs_init', 'test_requests.py::TestCaseInsensitiveDict::test_len', 'test_requests.py::TestCaseInsensitiveDict::test_lower_items', 'test_requests.py::TestCaseInsensitiveDict::test_mapping_init', 'test_requests.py::TestCaseInsensitiveDict::test_preserve_key_case', 'test_requests.py::TestCaseInsensitiveDict::test_preserve_last_key_case', 'test_requests.py::TestCaseInsensitiveDict::test_setdefault', 'test_requests.py::TestCaseInsensitiveDict::test_update', 'test_requests.py::TestCaseInsensitiveDict::test_update_retains_unchanged', 'test_requests.py::UtilsTestCase::test_address_in_network', 'test_requests.py::UtilsTestCase::test_dotted_netmask', 'test_requests.py::UtilsTestCase::test_get_auth_from_url', 'test_requests.py::UtilsTestCase::test_get_environ_proxies', 'test_requests.py::UtilsTestCase::test_get_environ_proxies_ip_ranges', 'test_requests.py::UtilsTestCase::test_guess_filename_when_filename_is_an_int', 'test_requests.py::UtilsTestCase::test_guess_filename_when_int', 'test_requests.py::UtilsTestCase::test_guess_filename_with_file_like_obj', 'test_requests.py::UtilsTestCase::test_guess_filename_with_unicode_name', 'test_requests.py::UtilsTestCase::test_is_ipv4_address', 'test_requests.py::UtilsTestCase::test_is_valid_cidr', 'test_requests.py::UtilsTestCase::test_requote_uri_properly_requotes', 'test_requests.py::UtilsTestCase::test_requote_uri_with_unquoted_percents', 'test_requests.py::UtilsTestCase::test_select_proxies', 'test_requests.py::UtilsTestCase::test_super_len_correctly_calculates_len_of_partially_read_file', 'test_requests.py::UtilsTestCase::test_super_len_io_streams', 'test_requests.py::TestMorselToCookieExpires::test_expires_invalid_int', 'test_requests.py::TestMorselToCookieExpires::test_expires_invalid_str', 'test_requests.py::TestMorselToCookieExpires::test_expires_none', 'test_requests.py::TestMorselToCookieExpires::test_expires_valid_str', 'test_requests.py::TestMorselToCookieMaxAge::test_max_age_invalid_str', 'test_requests.py::TestMorselToCookieMaxAge::test_max_age_valid_int', 'test_requests.py::TestTimeout::test_connect_timeout', 'test_requests.py::TestTimeout::test_total_timeout_connect', 'test_requests.py::test_data_argument_accepts_tuples', 'test_requests.py::test_prepared_request_empty_copy', 'test_requests.py::test_prepared_request_no_cookies_copy', 'test_requests.py::test_prepared_request_complete_copy', 'test_requests.py::test_prepare_unicode_url', 'test_requests.py::test_vendor_aliases'], 'failure': ['test_requests.py::TestRequests::test_params_bytes_are_encoded']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for psf__requests-2931: resolved: False
-2025-12-11 16:14:16,479 - INFO - Attempting to stop container sweb.eval.psf__requests-2931.my_evaluation_run...
-2025-12-11 16:14:31,600 - INFO - Attempting to remove container sweb.eval.psf__requests-2931.my_evaluation_run...
-2025-12-11 16:14:31,614 - INFO - Container sweb.eval.psf__requests-2931.my_evaluation_run removed.
+2025-12-11 20:35:37,186 - INFO - Attempting to stop container sweb.eval.psf__requests-2931.my_evaluation_run...
+2025-12-11 20:35:52,294 - INFO - Attempting to remove container sweb.eval.psf__requests-2931.my_evaluation_run...
+2025-12-11 20:35:52,308 - INFO - Container sweb.eval.psf__requests-2931.my_evaluation_run removed.

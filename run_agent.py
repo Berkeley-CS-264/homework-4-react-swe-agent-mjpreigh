@@ -49,8 +49,8 @@ def process_instance(
         agent = ReactAgent("swe-agent", parser, llm)
         
         # Add environment functions to the agent
-        #agent.add_functions([env.run_bash_cmd])
-        agent.add_functions([env.run_bash_cmd, env.show_file, env.replace_in_file, env.search_files, env.find_references_in_file, env.show_files])
+        agent.add_functions([env.run_bash_cmd])
+        #agent.add_functions([env.run_bash_cmd, env.show_file, env.search_files, env.find_references_in_file, env.show_files, env.replace_in_file])
         
         # TODO(student): Add more functions here if needed
         # agent.add_functions([env.replace_in_file, env.show_file, ...])

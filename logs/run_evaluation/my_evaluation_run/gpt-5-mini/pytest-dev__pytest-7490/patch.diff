@@ -1,0 +1,33 @@
+warning: adding embedded git repository: pytest-src
+hint: You've added another git repository inside your current repository.
+hint: Clones of the outer repository will not contain the contents of
+hint: the embedded repository and will not know how to obtain it.
+hint: If you meant to add a submodule, use:
+hint: 
+hint: 	git submodule add <url> pytest-src
+hint: 
+hint: If you added this path by mistake, you can remove it from the
+hint: index with:
+hint: 
+hint: 	git rm --cached pytest-src
+hint: 
+hint: See "git help submodule" for more information.
+diff --git a/pytest-src b/pytest-src
+new file mode 160000
+index 000000000..d01cde55e
+--- /dev/null
++++ b/pytest-src
+@@ -0,0 +1 @@
++Subproject commit d01cde55e8efe987b102045a1ca966c0f43f9e6f
+diff --git a/test_foo.py b/test_foo.py
+new file mode 100644
+index 000000000..71d3ed4e5
+--- /dev/null
++++ b/test_foo.py
+@@ -0,0 +1,6 @@
++import pytest
++
++def test_xfail_test(request):
++    mark = pytest.mark.xfail(reason="xfail")
++    request.node.add_marker(mark)
++    assert 0

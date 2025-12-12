@@ -137,10 +137,6 @@ Changes not staged for commit:
   (use "git restore <file>..." to discard changes in working directory)
 	modified:   sympy/physics/units/unitsystem.py
 
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-	temp_file.txt
-
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
 commit 8d9d9ffdba25d753ae469e0d393e8d039dd18af5
@@ -150,28 +146,21 @@ Date:   Wed Sep 10 16:54:54 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff e8c22f6eac7314be8d92590bfff92ced79ee03e2
 diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
-index a436880c4b..934d5acc23 100644
+index a436880c4b..e046f5fc98 100644
 --- a/sympy/physics/units/unitsystem.py
 +++ b/sympy/physics/units/unitsystem.py
-@@ -170,18 +170,6 @@ def _collect_factor_and_dimension(self, expr):
-             if self.get_dimension_system().is_dimensionless(exp_dim):
-                 exp_dim = 1
-             return factor ** exp_factor, dim ** (exp_factor * exp_dim)
--        elif isinstance(expr, Add):
--            factor, dim = self._collect_factor_and_dimension(expr.args[0])
--            for addend in expr.args[1:]:
--                addend_factor, addend_dim = \
--                    self._collect_factor_and_dimension(addend)
+@@ -175,7 +175,10 @@ def _collect_factor_and_dimension(self, expr):
+             for addend in expr.args[1:]:
+                 addend_factor, addend_dim = \
+                     self._collect_factor_and_dimension(addend)
 -                if dim != addend_dim:
--                    raise ValueError(
--                        'Dimension of "{}" is {}, '
--                        'but it should be {}'.format(
--                            addend, addend_dim, dim))
--                factor += addend_factor
--            return factor, dim
-         elif isinstance(expr, Derivative):
-             factor, dim = self._collect_factor_and_dimension(expr.args[0])
-             for independent, count in expr.variable_count:
++                # Accept addition when dimensions are equivalent (e.g.
++                # acceleration*time and velocity) even if their Dimension
++                # expressions are not syntactically identical.
++                if not self.get_dimension_system().equivalent_dims(dim, addend_dim):
+                     raise ValueError(
+                         'Dimension of "{}" is {}, '
+                         'but it should be {}'.format(
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -324,8 +313,8 @@ architecture:       64-bit
 cache:              no
 ground types:       python 
 numpy:              None
-random seed:        28729442
-hash randomization: on (PYTHONHASHSEED=4441220)
+random seed:        7534545
+hash randomization: on (PYTHONHASHSEED=944589574)
 
 sympy/physics/units/tests/test_quantities.py[34] 
 test_str_repr ok
@@ -337,7 +326,7 @@ test_print ok
 test_Quantity_eq ok
 test_add_sub ok
 test_quantity_abs ok
-test_check_unit_consistency E
+test_check_unit_consistency ok
 test_mul_div ok
 test_units ok
 test_issue_quart ok
@@ -345,7 +334,7 @@ test_issue_5565 ok
 test_find_unit ok
 test_Quantity_derivative ok
 test_quantity_postprocessing ok
-test_factor_and_dimension F
+test_factor_and_dimension ok
 test_factor_and_dimension_with_Abs f
 test_dimensional_expr_of_derivative ok
 test_get_dimensional_expr_with_function ok
@@ -357,44 +346,14 @@ test_issue_14547 ok
 test_deprecated_quantity_methods ok
 test_issue_22164 ok
 test_issue_22819 ok
-test_issue_20288 F
-test_issue_24062 F
+test_issue_20288 ok
+test_issue_24062 ok
 test_issue_24211 ok
 test_prefixed_property ok
-test_physics_constant ok                                                  [FAIL]
+test_physics_constant ok                                                    [OK]
 
 
-________________________________________________________________________________
-___ sympy/physics/units/tests/test_quantities.py:test_check_unit_consistency ___
-Traceback (most recent call last):
-  File "/testbed/sympy/physics/units/tests/test_quantities.py", line 191, in test_check_unit_consistency
-    raises(ValueError, lambda: check_unit_consistency(u + w))
-  File "/testbed/sympy/testing/pytest.py", line 119, in raises
-    raise Failed("DID NOT RAISE")
-sympy.testing.pytest.Failed: DID NOT RAISE
-
-________________________________________________________________________________
-____ sympy/physics/units/tests/test_quantities.py:test_factor_and_dimension ____
-Traceback (most recent call last):
-  File "/testbed/sympy/physics/units/tests/test_quantities.py", line 342, in test_factor_and_dimension
-    assert (1001, length) == SI._collect_factor_and_dimension(meter + km)
-AssertionError
-________________________________________________________________________________
-________ sympy/physics/units/tests/test_quantities.py:test_issue_20288 _________
-Traceback (most recent call last):
-  File "/testbed/sympy/physics/units/tests/test_quantities.py", line 541, in test_issue_20288
-    assert SI._collect_factor_and_dimension(expr) == (1 + E, Dimension(1))
-AssertionError
-________________________________________________________________________________
-________ sympy/physics/units/tests/test_quantities.py:test_issue_24062 _________
-Traceback (most recent call last):
-  File "/testbed/sympy/physics/units/tests/test_quantities.py", line 562, in test_issue_24062
-    assert SI._collect_factor_and_dimension(exp_expr) == (1 + E, Dimension(1))
-AssertionError
-
- tests finished: 29 passed, 3 failed, 1 expected to fail, 1 exceptions, 
-in 0.95 seconds 
-DO *NOT* COMMIT!
+======== tests finished: 33 passed, 1 expected to fail, in 1.12 seconds ========
 + : '>>>>> End Test Output'
 + git checkout e8c22f6eac7314be8d92590bfff92ced79ee03e2 sympy/physics/units/tests/test_quantities.py
 Updated 1 path from b86b9b19fd
