@@ -230,26 +230,185 @@ index 2b4504101..d865b8b37 100644
  
  extras_require = {
 diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
-index 87707d48f..caae459c1 100644
+index 87707d48f..e581d8bcc 100644
 --- a/sphinx/util/typing.py
 +++ b/sphinx/util/typing.py
-@@ -82,6 +82,16 @@ def get_type_hints(obj: Any, globalns: Dict = None, localns: Dict = None) -> Dic
-     from sphinx.util.inspect import safe_getattr  # lazy loading
+@@ -121,7 +121,7 @@ def restify(cls: Optional[Type]) -> str:
+             if sys.version_info > (3, 10):
+                 # newtypes have correct module info since Python 3.10+
+                 print(cls, type(cls), dir(cls))
+-                return ':py:class:`%s.%s`' % (cls.__module__, cls.__name__)
++                return ':py:class:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+             else:
+                 return ':py:class:`%s`' % cls.__name__
+         elif UnionType and isinstance(cls, UnionType):
+@@ -146,6 +146,50 @@ def restify(cls: Optional[Type]) -> str:
+     except (AttributeError, TypeError):
+         return repr(cls)
  
-     try:
-+        # If this is a mocked object created by autodoc.mock, it may provide a
-+        # human-friendly display name in __display_name__.  Use that to avoid
-+        # producing results such as "torch.nn." when the qualname is empty.
-+        display_name = getattr(cls, "__display_name__", None)
-+        if display_name and isinstance(display_name, str):
-+            # __display_name__ is stored as "module.ClassName" for mocked
-+            # classes (see sphinx.ext.autodoc.mock._make_subclass).  Use it
-+            # directly to form the :py:class: role text.
-+            return ':py:class:`%s`' % display_name
++def _get_class_name_for_restify(cls: object) -> str:
++    \"\"\"Best-effort class name for use in restify.
 +
-         return typing.get_type_hints(obj, globalns, localns)
-     except NameError:
-         # Failed to evaluate ForwardRef (maybe TYPE_CHECKING)
++    Some mocked or dynamically created objects may have missing or broken
++    __qualname__ or __name__ attributes which leads to output like
++    ``torch.nn.``. This helper tries several fallbacks:
++    - __qualname__
++    - __name__
++    - attempt to extract name from repr() (useful for Mock objects)
++    - cls.__class__.__name__
++    - finally repr(cls)
++    \"\"\"
++    # Prefer __qualname__ then __name__
++    try:
++        name = getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None)
++        if name:
++            name = str(name)
++            if name.strip():
++                return name
++    except Exception:
++        pass
++
++    # Try to find a dotted name in repr(), e.g. "name='torch.nn.Module'" from Mock
++    try:
++        import re
++        r = repr(cls)
++        m = re.search(r"name=['\\\"](?P<n>[\\w\\.]+)['\\\"]", r)
++        if m:
++            cand = m.group('n').split('.')[-1]
++            if cand:
++                return cand
++    except Exception:
++        pass
++
++    # Fallback to the class name of the object (e.g., Mock)
++    try:
++        c = getattr(cls, '__class__', None)
++        if c is not None:
++            return getattr(c, '__name__', repr(cls))
++    except Exception:
++        pass
++
++    return repr(cls)
++
+ 
+ def _restify_py37(cls: Optional[Type]) -> str:
+     """Convert python class to a reST reference."""
+@@ -193,17 +237,17 @@ def _restify_py37(cls: Optional[Type]) -> str:
+         return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+     elif isinstance(cls, ForwardRef):
+         return ':py:class:`%s`' % cls.__forward_arg__
+     else:
+         # not a class (ex. TypeVar)
+         if cls.__module__ == 'typing':
+-            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+ 
+ 
+ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -212,7 +256,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+         if getattr(cls, '_name', None):
+             qualname = cls._name
+         elif getattr(cls, '__qualname__', None):
+-            qualname = cls.__qualname__
++            qualname = _get_class_name_for_restify(cls)
+         elif getattr(cls, '__forward_arg__', None):
+             qualname = cls.__forward_arg__
+         elif getattr(cls, '__origin__', None):
+@@ -220,7 +264,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+         else:
+             qualname = repr(cls).replace('typing.', '')
+     elif hasattr(cls, '__qualname__'):
+-        qualname = '%s.%s' % (module, cls.__qualname__)
++        qualname = '%s.%s' % (module, _get_class_name_for_restify(cls))
+     else:
+         qualname = repr(cls)
+ 
+@@ -275,9 +319,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+             return ':py:obj:`Union`'
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+     elif hasattr(cls, '_name'):
+         # SpecialForm
+         if cls.__module__ == 'typing':
+@@ -287,9 +331,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+     elif hasattr(cls, '__name__'):
+         # not a class (ex. TypeVar)
+         if cls.__module__ == 'typing':
+-            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+     else:
+         # others (ex. Any)
+         if cls.__module__ == 'typing':
+@@ -316,7 +360,7 @@ def stringify(annotation: Any) -> str:
+     elif inspect.isNewType(annotation):
+         if sys.version_info > (3, 10):
+             # newtypes have correct module info since Python 3.10+
+-            return '%s.%s' % (annotation.__module__, annotation.__name__)
++            return '%s.%s' % (annotation.__module__, getattr(annotation, '__name__', _get_class_name_for_restify(annotation)))
+         else:
+             return annotation.__name__
+     elif not annotation:
+@@ -332,7 +376,7 @@ def stringify(annotation: Any) -> str:
+         if hasattr(annotation, '__args__'):  # PEP 585 generic
+             return repr(annotation)
+         else:
+-            return annotation.__qualname__
++            return _get_class_name_for_restify(annotation)
+     elif annotation is Ellipsis:
+         return '...'
+ 
+@@ -349,13 +393,13 @@ def _stringify_py37(annotation: Any) -> str:
+         if getattr(annotation, '_name', None):
+             qualname = annotation._name
+         elif getattr(annotation, '__qualname__', None):
+-            qualname = annotation.__qualname__
++            qualname = _get_class_name_for_restify(annotation)
+         elif getattr(annotation, '__forward_arg__', None):
+             qualname = annotation.__forward_arg__
+         else:
+             qualname = stringify(annotation.__origin__)  # ex. Union
+     elif hasattr(annotation, '__qualname__'):
+-        qualname = '%s.%s' % (module, annotation.__qualname__)
++        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
+     elif hasattr(annotation, '__origin__'):
+         # instantiated generic provided by a user
+         qualname = stringify(annotation.__origin__)
+@@ -412,7 +456,7 @@ def _stringify_py36(annotation: Any) -> str:
+         if getattr(annotation, '_name', None):
+             qualname = annotation._name
+         elif getattr(annotation, '__qualname__', None):
+-            qualname = annotation.__qualname__
++            qualname = _get_class_name_for_restify(annotation)
+         elif getattr(annotation, '__forward_arg__', None):
+             qualname = annotation.__forward_arg__
+         elif getattr(annotation, '__origin__', None):
+@@ -420,7 +464,7 @@ def _stringify_py36(annotation: Any) -> str:
+         else:
+             qualname = repr(annotation).replace('typing.', '')
+     elif hasattr(annotation, '__qualname__'):
+-        qualname = '%s.%s' % (module, annotation.__qualname__)
++        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
+     else:
+         qualname = repr(annotation)
+ 
 diff --git a/tox.ini b/tox.ini
 index b6a67fd85..483f2df92 100644
 --- a/tox.ini
@@ -440,90 +599,95 @@ Applied patch tests/test_util_typing.py cleanly.
 + : '>>>>> Start Test Output'
 + tox --current-env -epy39 -v -- tests/test_util_typing.py
 py39: commands[0]> python -X dev -m pytest -rA --durations 25 tests/test_util_typing.py
-[1m============================= test session starts ==============================[0m
-platform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0
-cachedir: .tox/py39/.pytest_cache
-libraries: Sphinx-4.3.0+/c957878d3, docutils-0.17.1
-base tempdir: /tmp/pytest-of-root/pytest-0
-rootdir: /testbed
-configfile: setup.cfg
-plugins: cov-5.0.0
-collected 27 items
-
-tests/test_util_typing.py [32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[33ms[0m[32m.[0m[31mF[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[33ms[0m[32m.[0m[32m.[0m[31m                    [100%][0m
-
-=================================== FAILURES ===================================
-[31m[1m______________________________ test_restify_mock _______________________________[0m
-
-    [0m[94mdef[39;49;00m [92mtest_restify_mock[39;49;00m():[90m[39;49;00m
-        [94mwith[39;49;00m mock([[33m'[39;49;00m[33munknown[39;49;00m[33m'[39;49;00m]):[90m[39;49;00m
-            [94mimport[39;49;00m [04m[96munknown[39;49;00m[90m[39;49;00m
->           [94massert[39;49;00m restify(unknown.secret.Class) == [33m'[39;49;00m[33m:py:class:`unknown.secret.Class`[39;49;00m[33m'[39;49;00m[90m[39;49;00m
-[1m[31mE           AssertionError: assert ':py:class:`unknown.secret.`' == ':py:class:`u...secret.Class`'[0m
-[1m[31mE             [0m
-[1m[31mE             - :py:class:`unknown.secret.Class`[0m
-[1m[31mE             ?                           -----[0m
-[1m[31mE             + :py:class:`unknown.secret.`[0m
-
-[1m[31mtests/test_util_typing.py[0m:177: AssertionError
-[33m=============================== warnings summary ===============================[0m
-sphinx/util/docutils.py:44
-  /testbed/sphinx/util/docutils.py:44: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
-    __version_info__ = tuple(LooseVersion(docutils.__version__).version)
-
-sphinx/highlighting.py:67
-  /testbed/sphinx/highlighting.py:67: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
-    if tuple(LooseVersion(pygmentsversion).version) <= (2, 7, 4):
-
-sphinx/registry.py:24
-  /testbed/sphinx/registry.py:24: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
-    from pkg_resources import iter_entry_points
-
-../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:3154
-../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:3154
-../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:3154
-../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:3154
-  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:3154: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('sphinxcontrib')`.
-  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
-    declare_namespace(pkg)
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-==================================== PASSES ====================================
-============================= slowest 25 durations =============================
-
-(25 durations < 0.005s hidden.  Use -vv to show these durations.)
-[36m[1m=========================== short test summary info ============================[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_hints_containers[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_hints_Callable[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_hints_Union[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_hints_typevars[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_hints_custom_class[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_hints_alias[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_ForwardRef[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_type_Literal[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_pep_585[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_restify_broken_type_hints[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_containers[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_pep_585[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_Annotated[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_string[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_Callable[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_Union[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_typevars[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_custom_class[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_hints_alias[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_type_Literal[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_broken_type_hints[0m
-[32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_mock[0m
-[33mSKIPPED[0m [1] tests/test_util_typing.py:162: python 3.10+ is required.
-[33mSKIPPED[0m [1] tests/test_util_typing.py:295: python 3.10+ is required.
-[31mFAILED[0m tests/test_util_typing.py::[1mtest_restify_mock[0m - AssertionError: assert ':py:class:`unknown.secret.`' == ':py:class:`u...sec...
-[31m============= [31m[1m1 failed[0m, [32m24 passed[0m, [33m2 skipped[0m, [33m7 warnings[0m[31m in 0.16s[0m[31m ==============[0m
-py39: exit 1 (0.69 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_util_typing.py pid=83
-  py39: FAIL code 1 (0.71=setup[0.02]+cmd[0.69] seconds)
-  evaluation failed :( (0.78 seconds)
+Traceback (most recent call last):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 201, in console_main
+    code = main()
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 156, in main
+    config = _prepareconfig(args, plugins)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 341, in _prepareconfig
+    config = pluginmanager.hook.pytest_cmdline_parse(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_hooks.py", line 513, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_callers.py", line 139, in _multicall
+    raise exception.with_traceback(exception.__traceback__)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_callers.py", line 122, in _multicall
+    teardown.throw(exception)  # type: ignore[union-attr]
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/helpconfig.py", line 105, in pytest_cmdline_parse
+    config = yield
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_callers.py", line 103, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 1140, in pytest_cmdline_parse
+    self.parse(args)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 1494, in parse
+    self._preparse(args, addopts=addopts)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 1398, in _preparse
+    self.hook.pytest_load_initial_conftests(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_hooks.py", line 513, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_callers.py", line 139, in _multicall
+    raise exception.with_traceback(exception.__traceback__)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_callers.py", line 122, in _multicall
+    teardown.throw(exception)  # type: ignore[union-attr]
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/warnings.py", line 151, in pytest_load_initial_conftests
+    return (yield)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_callers.py", line 122, in _multicall
+    teardown.throw(exception)  # type: ignore[union-attr]
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/capture.py", line 154, in pytest_load_initial_conftests
+    yield
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/_callers.py", line 103, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 1222, in pytest_load_initial_conftests
+    self.pluginmanager._set_initial_conftests(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 581, in _set_initial_conftests
+    self._try_load_conftest(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 619, in _try_load_conftest
+    self._loadconftestmodules(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 659, in _loadconftestmodules
+    mod = self._importconftest(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 735, in _importconftest
+    self.consider_conftest(mod, registration_name=conftestpath_plugin_name)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 816, in consider_conftest
+    self.register(conftestmodule, name=registration_name)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 512, in register
+    self.consider_module(plugin)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 824, in consider_module
+    self._import_plugin_specs(getattr(mod, "pytest_plugins", []))
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 831, in _import_plugin_specs
+    self.import_plugin(import_spec)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py", line 858, in import_plugin
+    __import__(importspec)
+  File "<frozen importlib._bootstrap>", line 1007, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 986, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 680, in _load_unlocked
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/assertion/rewrite.py", line 184, in exec_module
+    exec(co, module.__dict__)
+  File "/testbed/sphinx/testing/fixtures.py", line 20, in <module>
+    from sphinx.testing import util
+  File "/testbed/sphinx/testing/util.py", line 23, in <module>
+    from sphinx import application, locale
+  File "/testbed/sphinx/application.py", line 32, in <module>
+    from sphinx.config import Config
+  File "/testbed/sphinx/config.py", line 21, in <module>
+    from sphinx.util import logging
+  File "/testbed/sphinx/util/__init__.py", line 41, in <module>
+    from sphinx.util.typing import PathMatcher
+  File "/testbed/sphinx/util/typing.py", line 150
+    \"\"\"Best-effort class name for use in restify.
+     ^
+SyntaxError: unexpected character after line continuation character
+py39: exit 1 (0.36 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_util_typing.py pid=83
+  py39: FAIL code 1 (0.38=setup[0.02]+cmd[0.36] seconds)
+  evaluation failed :( (0.44 seconds)
 + : '>>>>> End Test Output'
 + git checkout 232dbe41c5250eb7d559d40438c4743483e95f15 tests/test_util_typing.py
 Updated 1 path from efb20edb0

@@ -30,7 +30,7 @@ class SWEEnvironment:
         Run the command in a bash shell and return the output or throw a ValueError
         if the process returns non-zero exit code.
 
-        Args;
+        Args:
             command (str): the shell command to run
 
         Returns:
@@ -74,7 +74,7 @@ class SWEEnvironment:
         """
         Replace the content of the file from the given line to the given line with the given content. ALL CONTENT ON AND BETWEEN THE GIVEN LINES WILL BE DELETED.
 
-        Args;
+        Args:
             file_path (str): the path to the file
 
             from_line (int): first line to be replaced
@@ -122,7 +122,7 @@ class SWEEnvironment:
         """
         Insert the given content in the file after the given line number. NOTHING WILL BE DELETED FROM THE FILE.
 
-        Args;
+        
             file_path (str): the path to the file
 
             line_number (int): the content will be inserted AFTER this line number
@@ -148,6 +148,12 @@ class SWEEnvironment:
     def show_file(self, file_path: str) -> str:
         """
         [Optional]Show the content of the file
+
+        Args:
+            file_path (str): file path
+
+        Returns:
+            The contents of the given file
         """
         cmd = f'cat -n "{file_path}"'
         return self.run_bash_cmd(cmd)
@@ -156,7 +162,7 @@ class SWEEnvironment:
         """
         Show the contents of each file in the given list of file paths
 
-        Args;
+        Args:
             file_paths (list[str]): a list of file paths
 
         Returns:
@@ -176,6 +182,12 @@ class SWEEnvironment:
     def search_files(self, content: str) -> str:
         """
         Return a list of files which contain the given content string
+
+        Args:
+            content (str): The string to look for in files
+
+        Returns:
+            List of file paths containing files where the given string shows up
         """
 
         cmd = f'grep -Rn "{content}" || true'
@@ -184,6 +196,14 @@ class SWEEnvironment:
     def find_references_in_file(self, file_path: str, content: str):
         """
         Return a list of all line numbers and instances in the given file where the given content appears
+
+        Args:
+            file_path (str): The file to look in
+
+            content (str): The string to look for in the file
+
+        Returns:
+            List of the line numbers and specific text where the content shows up in the file
         """
         cmd = f'grep -n "{content}" {file_path}'
         return self.run_bash_cmd(cmd)
@@ -197,7 +217,7 @@ class DumbEnvironment:
         """
         Run the command in bash and return the output
 
-        Args;
+        Args:
             command (str): the shell command to run
 
         Returns:
@@ -214,7 +234,7 @@ class DumbEnvironment:
         Run the command in a bash shell and return the output or throw a ValueError
         if the process returns non-zero exit code.
 
-        Args;
+        Args:
             command (str): the shell command to run
 
         Returns:

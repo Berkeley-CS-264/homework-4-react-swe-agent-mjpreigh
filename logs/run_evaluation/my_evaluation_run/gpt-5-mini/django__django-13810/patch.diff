@@ -1,5 +1,5 @@
 diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
-index 8e8c3da06a..8833f35201 100644
+index 8e8c3da06a..911c06b73e 100644
 --- a/django/core/handlers/base.py
 +++ b/django/core/handlers/base.py
 @@ -50,12 +50,16 @@ class BaseHandler:
@@ -8,11 +8,11 @@ index 8e8c3da06a..8833f35201 100644
              try:
 -                # Adapt handler, if needed.
 -                handler = self.adapt_method_mode(
-+                # Adapt handler for passing into the middleware, if needed.
-+                # Do not overwrite `handler` until the middleware has been
-+                # instantiated successfully. If the middleware raises
-+                # MiddlewareNotUsed during initialization, we must not mutate
-+                # the handler for subsequent middleware.
++                # Adapt handler, if needed, to pass to the middleware factory.
++                # Use a temporary variable so that if the middleware factory
++                # raises MiddlewareNotUsed we don't overwrite the current
++                # handler (which would "poison" the chain for subsequent
++                # middleware).
 +                adapted_handler = self.adapt_method_mode(
                      middleware_is_async, handler, handler_is_async,
                      debug=settings.DEBUG, name='middleware %s' % middleware_path,

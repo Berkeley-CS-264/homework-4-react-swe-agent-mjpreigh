@@ -1,21 +1,180 @@
 diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
-index 87707d48f..caae459c1 100644
+index 87707d48f..e581d8bcc 100644
 --- a/sphinx/util/typing.py
 +++ b/sphinx/util/typing.py
-@@ -82,6 +82,16 @@ def get_type_hints(obj: Any, globalns: Dict = None, localns: Dict = None) -> Dic
-     from sphinx.util.inspect import safe_getattr  # lazy loading
+@@ -121,7 +121,7 @@ def restify(cls: Optional[Type]) -> str:
+             if sys.version_info > (3, 10):
+                 # newtypes have correct module info since Python 3.10+
+                 print(cls, type(cls), dir(cls))
+-                return ':py:class:`%s.%s`' % (cls.__module__, cls.__name__)
++                return ':py:class:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+             else:
+                 return ':py:class:`%s`' % cls.__name__
+         elif UnionType and isinstance(cls, UnionType):
+@@ -146,6 +146,50 @@ def restify(cls: Optional[Type]) -> str:
+     except (AttributeError, TypeError):
+         return repr(cls)
  
-     try:
-+        # If this is a mocked object created by autodoc.mock, it may provide a
-+        # human-friendly display name in __display_name__.  Use that to avoid
-+        # producing results such as "torch.nn." when the qualname is empty.
-+        display_name = getattr(cls, "__display_name__", None)
-+        if display_name and isinstance(display_name, str):
-+            # __display_name__ is stored as "module.ClassName" for mocked
-+            # classes (see sphinx.ext.autodoc.mock._make_subclass).  Use it
-+            # directly to form the :py:class: role text.
-+            return ':py:class:`%s`' % display_name
++def _get_class_name_for_restify(cls: object) -> str:
++    \"\"\"Best-effort class name for use in restify.
 +
-         return typing.get_type_hints(obj, globalns, localns)
-     except NameError:
-         # Failed to evaluate ForwardRef (maybe TYPE_CHECKING)
++    Some mocked or dynamically created objects may have missing or broken
++    __qualname__ or __name__ attributes which leads to output like
++    ``torch.nn.``. This helper tries several fallbacks:
++    - __qualname__
++    - __name__
++    - attempt to extract name from repr() (useful for Mock objects)
++    - cls.__class__.__name__
++    - finally repr(cls)
++    \"\"\"
++    # Prefer __qualname__ then __name__
++    try:
++        name = getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None)
++        if name:
++            name = str(name)
++            if name.strip():
++                return name
++    except Exception:
++        pass
++
++    # Try to find a dotted name in repr(), e.g. "name='torch.nn.Module'" from Mock
++    try:
++        import re
++        r = repr(cls)
++        m = re.search(r"name=['\\\"](?P<n>[\\w\\.]+)['\\\"]", r)
++        if m:
++            cand = m.group('n').split('.')[-1]
++            if cand:
++                return cand
++    except Exception:
++        pass
++
++    # Fallback to the class name of the object (e.g., Mock)
++    try:
++        c = getattr(cls, '__class__', None)
++        if c is not None:
++            return getattr(c, '__name__', repr(cls))
++    except Exception:
++        pass
++
++    return repr(cls)
++
+ 
+ def _restify_py37(cls: Optional[Type]) -> str:
+     """Convert python class to a reST reference."""
+@@ -193,17 +237,17 @@ def _restify_py37(cls: Optional[Type]) -> str:
+         return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+     elif isinstance(cls, ForwardRef):
+         return ':py:class:`%s`' % cls.__forward_arg__
+     else:
+         # not a class (ex. TypeVar)
+         if cls.__module__ == 'typing':
+-            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+ 
+ 
+ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -212,7 +256,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+         if getattr(cls, '_name', None):
+             qualname = cls._name
+         elif getattr(cls, '__qualname__', None):
+-            qualname = cls.__qualname__
++            qualname = _get_class_name_for_restify(cls)
+         elif getattr(cls, '__forward_arg__', None):
+             qualname = cls.__forward_arg__
+         elif getattr(cls, '__origin__', None):
+@@ -220,7 +264,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+         else:
+             qualname = repr(cls).replace('typing.', '')
+     elif hasattr(cls, '__qualname__'):
+-        qualname = '%s.%s' % (module, cls.__qualname__)
++        qualname = '%s.%s' % (module, _get_class_name_for_restify(cls))
+     else:
+         qualname = repr(cls)
+ 
+@@ -275,9 +319,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+             return ':py:obj:`Union`'
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
+     elif hasattr(cls, '_name'):
+         # SpecialForm
+         if cls.__module__ == 'typing':
+@@ -287,9 +331,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+     elif hasattr(cls, '__name__'):
+         # not a class (ex. TypeVar)
+         if cls.__module__ == 'typing':
+-            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
+     else:
+         # others (ex. Any)
+         if cls.__module__ == 'typing':
+@@ -316,7 +360,7 @@ def stringify(annotation: Any) -> str:
+     elif inspect.isNewType(annotation):
+         if sys.version_info > (3, 10):
+             # newtypes have correct module info since Python 3.10+
+-            return '%s.%s' % (annotation.__module__, annotation.__name__)
++            return '%s.%s' % (annotation.__module__, getattr(annotation, '__name__', _get_class_name_for_restify(annotation)))
+         else:
+             return annotation.__name__
+     elif not annotation:
+@@ -332,7 +376,7 @@ def stringify(annotation: Any) -> str:
+         if hasattr(annotation, '__args__'):  # PEP 585 generic
+             return repr(annotation)
+         else:
+-            return annotation.__qualname__
++            return _get_class_name_for_restify(annotation)
+     elif annotation is Ellipsis:
+         return '...'
+ 
+@@ -349,13 +393,13 @@ def _stringify_py37(annotation: Any) -> str:
+         if getattr(annotation, '_name', None):
+             qualname = annotation._name
+         elif getattr(annotation, '__qualname__', None):
+-            qualname = annotation.__qualname__
++            qualname = _get_class_name_for_restify(annotation)
+         elif getattr(annotation, '__forward_arg__', None):
+             qualname = annotation.__forward_arg__
+         else:
+             qualname = stringify(annotation.__origin__)  # ex. Union
+     elif hasattr(annotation, '__qualname__'):
+-        qualname = '%s.%s' % (module, annotation.__qualname__)
++        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
+     elif hasattr(annotation, '__origin__'):
+         # instantiated generic provided by a user
+         qualname = stringify(annotation.__origin__)
+@@ -412,7 +456,7 @@ def _stringify_py36(annotation: Any) -> str:
+         if getattr(annotation, '_name', None):
+             qualname = annotation._name
+         elif getattr(annotation, '__qualname__', None):
+-            qualname = annotation.__qualname__
++            qualname = _get_class_name_for_restify(annotation)
+         elif getattr(annotation, '__forward_arg__', None):
+             qualname = annotation.__forward_arg__
+         elif getattr(annotation, '__origin__', None):
+@@ -420,7 +464,7 @@ def _stringify_py36(annotation: Any) -> str:
+         else:
+             qualname = repr(annotation).replace('typing.', '')
+     elif hasattr(annotation, '__qualname__'):
+-        qualname = '%s.%s' % (module, annotation.__qualname__)
++        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
+     else:
+         qualname = repr(annotation)
+ 

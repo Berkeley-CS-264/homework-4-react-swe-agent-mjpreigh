@@ -1,85 +1,135 @@
-2025-12-11 21:18:46,857 - INFO - Creating container for django__django-16631...
-2025-12-11 21:18:46,873 - INFO - Container for django__django-16631 created: 70b69b415d7e982a921ef9954842ece9dd6e5bf06d00d4488939553374a188d0
-2025-12-11 21:18:46,943 - INFO - Container for django__django-16631 started: 70b69b415d7e982a921ef9954842ece9dd6e5bf06d00d4488939553374a188d0
-2025-12-11 21:18:46,943 - INFO - Intermediate patch for django__django-16631 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16631/patch.diff, now applying to container...
-2025-12-11 21:18:47,073 - INFO - >>>>> Applied Patch:
+2025-12-11 22:17:44,240 - INFO - Creating container for django__django-16631...
+2025-12-11 22:17:44,260 - INFO - Container for django__django-16631 created: 8b6862660bdba922936150b33a790482a7d8f5c494e168330a52eba12890321c
+2025-12-11 22:17:44,347 - INFO - Container for django__django-16631 started: 8b6862660bdba922936150b33a790482a7d8f5c494e168330a52eba12890321c
+2025-12-11 22:17:44,348 - INFO - Intermediate patch for django__django-16631 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16631/patch.diff, now applying to container...
+2025-12-11 22:17:44,480 - INFO - >>>>> Applied Patch:
 Checking patch docs/ref/settings.txt...
+Checking patch docs/topics/signing.txt...
 Applied patch docs/ref/settings.txt cleanly.
+Applied patch docs/topics/signing.txt cleanly.
 
-2025-12-11 21:18:47,515 - INFO - Git diff before:
+2025-12-11 22:17:44,935 - INFO - Git diff before:
 diff --git a/docs/ref/settings.txt b/docs/ref/settings.txt
-index 41387886c0..48accd33f2 100644
+index 41387886c0..4b328ca59c 100644
 --- a/docs/ref/settings.txt
 +++ b/docs/ref/settings.txt
-@@ -2304,7 +2304,28 @@ used to allow rotation of the ``SECRET_KEY``.
- In order to rotate your secret keys, set a new ``SECRET_KEY`` and move the
- previous value to the beginning of ``SECRET_KEY_FALLBACKS``. Then remove the
- old values from the end of the ``SECRET_KEY_FALLBACKS`` when you are ready to
+@@ -2301,10 +2301,13 @@ Default: ``[]``
+ A list of fallback secret keys for a particular Django installation. These are
+ used to allow rotation of the ``SECRET_KEY``.
+ 
+-In order to rotate your secret keys, set a new ``SECRET_KEY`` and move the
+-previous value to the beginning of ``SECRET_KEY_FALLBACKS``. Then remove the
+-old values from the end of the ``SECRET_KEY_FALLBACKS`` when you are ready to
 -expire the sessions, password reset tokens, and so on, that make use of them.
-+expire the signed values that make use of them.
-+
-+.. note::
-+
-+    Not all APIs that use :setting:`SECRET_KEY` will automatically try the
-+    values in :setting:`SECRET_KEY_FALLBACKS`. The signing framework
-+    (``django.core.signing.Signer`` / ``TimestampSigner`` and the cookie
-+    signer built from :func:`django.core.signing.get_cookie_signer`) will
-+    validate signed values using fallback keys when provided. Some token
-+    generators (for example
-+    :class:`django.contrib.auth.tokens.PasswordResetTokenGenerator`) also
-+    explicitly try secret fallbacks when verifying tokens.
-+
-+    However, other code paths do not use fallback keys. In particular,
-+    :meth:`django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash`
-+    calls :func:`django.utils.crypto.salted_hmac` without passing an explicit
-+    secret, and therefore uses the current :setting:`SECRET_KEY` only and
-+    does not attempt any values from :setting:`SECRET_KEY_FALLBACKS`. If your
-+    session backend or authentication flow relies on that hash, rotating
-+    :setting:`SECRET_KEY` may log users out even if the old key is present in
-+    :setting:`SECRET_KEY_FALLBACKS`. Review the specific code paths you rely
-+    on when rotating keys.
++In order to rotate your secret keys, set a new ``SECRET_KEY`` and add the
++previous value to ``SECRET_KEY_FALLBACKS``. Django validates signed data by
++checking the current ``SECRET_KEY`` first and then each value in
++``SECRET_KEY_FALLBACKS`` in order. To allow old signed data to continue to be
++validated, include the old key(s) in ``SECRET_KEY_FALLBACKS`` (for example,
++append them). When you are ready to expire the old signatures, remove the
++old values from ``SECRET_KEY_FALLBACKS``.
  
  .. note::
-2025-12-11 21:18:47,516 - INFO - Eval script for django__django-16631 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16631/eval.sh; copying to container...
-2025-12-11 21:18:52,501 - INFO - Test runtime: 4.93 seconds
-2025-12-11 21:18:52,502 - INFO - Test output for django__django-16631 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16631/test_output.txt
-2025-12-11 21:18:52,604 - INFO - Git diff after:
+ 
+diff --git a/docs/topics/signing.txt b/docs/topics/signing.txt
+index eaf1696b2c..2ada3fa0f4 100644
+--- a/docs/topics/signing.txt
++++ b/docs/topics/signing.txt
+@@ -35,8 +35,20 @@ data -- it is vital you keep this secure, or attackers could use it to
+ generate their own signed values.
+ 
+ :setting:`SECRET_KEY_FALLBACKS` can be used to rotate secret keys. The
+-values will not be used to sign data, but if specified, they will be used to
+-validate signed data and must be kept secure.
++values are not used to sign new data, but are consulted when verifying
++signatures by the signing framework (for example, the :class:`~Signer`
++class and :func:`django.core.signing.loads`). Django checks the current
++:setting:`SECRET_KEY` first, then the values in :setting:`SECRET_KEY_FALLBACKS`
++in order. Values in :setting:`SECRET_KEY_FALLBACKS` must be kept secure.
++
++Note: Some lower-level functions call :func:`django.utils.crypto.salted_hmac`
++without passing an explicit ``secret`` argument. Those calls use
++:setting:`SECRET_KEY` directly and do not consult
++:setting:`SECRET_KEY_FALLBACKS`. For example,
++:meth:`~django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash`
++uses :func:`salted_hmac` without an explicit secret, so rotating
++:setting:`SECRET_KEY` will invalidate existing session authentication hashes
++even if the old key is present in :setting:`SECRET_KEY_FALLBACKS`.
+ 
+ Using the low-level API
+ =======================
+@@ -119,6 +131,8 @@ generate signatures. You can use a different secret by passing it to the
+     :py:mod:`hashlib`, it defaults to ``'sha256'``. ``fallback_keys`` is a list
+     of additional values used to validate signed data, defaults to
+     :setting:`SECRET_KEY_FALLBACKS`.
++    When verifying signatures, the signer checks the primary key first and then each
++    value in ``fallback_keys`` in the order provided.
+ 
+     .. deprecated:: 4.2
+2025-12-11 22:17:44,935 - INFO - Eval script for django__django-16631 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16631/eval.sh; copying to container...
+2025-12-11 22:17:50,484 - INFO - Test runtime: 5.50 seconds
+2025-12-11 22:17:50,485 - INFO - Test output for django__django-16631 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-16631/test_output.txt
+2025-12-11 22:17:50,589 - INFO - Git diff after:
 diff --git a/docs/ref/settings.txt b/docs/ref/settings.txt
-index 41387886c0..48accd33f2 100644
+index 41387886c0..4b328ca59c 100644
 --- a/docs/ref/settings.txt
 +++ b/docs/ref/settings.txt
-@@ -2304,7 +2304,28 @@ used to allow rotation of the ``SECRET_KEY``.
- In order to rotate your secret keys, set a new ``SECRET_KEY`` and move the
- previous value to the beginning of ``SECRET_KEY_FALLBACKS``. Then remove the
- old values from the end of the ``SECRET_KEY_FALLBACKS`` when you are ready to
+@@ -2301,10 +2301,13 @@ Default: ``[]``
+ A list of fallback secret keys for a particular Django installation. These are
+ used to allow rotation of the ``SECRET_KEY``.
+ 
+-In order to rotate your secret keys, set a new ``SECRET_KEY`` and move the
+-previous value to the beginning of ``SECRET_KEY_FALLBACKS``. Then remove the
+-old values from the end of the ``SECRET_KEY_FALLBACKS`` when you are ready to
 -expire the sessions, password reset tokens, and so on, that make use of them.
-+expire the signed values that make use of them.
-+
-+.. note::
-+
-+    Not all APIs that use :setting:`SECRET_KEY` will automatically try the
-+    values in :setting:`SECRET_KEY_FALLBACKS`. The signing framework
-+    (``django.core.signing.Signer`` / ``TimestampSigner`` and the cookie
-+    signer built from :func:`django.core.signing.get_cookie_signer`) will
-+    validate signed values using fallback keys when provided. Some token
-+    generators (for example
-+    :class:`django.contrib.auth.tokens.PasswordResetTokenGenerator`) also
-+    explicitly try secret fallbacks when verifying tokens.
-+
-+    However, other code paths do not use fallback keys. In particular,
-+    :meth:`django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash`
-+    calls :func:`django.utils.crypto.salted_hmac` without passing an explicit
-+    secret, and therefore uses the current :setting:`SECRET_KEY` only and
-+    does not attempt any values from :setting:`SECRET_KEY_FALLBACKS`. If your
-+    session backend or authentication flow relies on that hash, rotating
-+    :setting:`SECRET_KEY` may log users out even if the old key is present in
-+    :setting:`SECRET_KEY_FALLBACKS`. Review the specific code paths you rely
-+    on when rotating keys.
++In order to rotate your secret keys, set a new ``SECRET_KEY`` and add the
++previous value to ``SECRET_KEY_FALLBACKS``. Django validates signed data by
++checking the current ``SECRET_KEY`` first and then each value in
++``SECRET_KEY_FALLBACKS`` in order. To allow old signed data to continue to be
++validated, include the old key(s) in ``SECRET_KEY_FALLBACKS`` (for example,
++append them). When you are ready to expire the old signatures, remove the
++old values from ``SECRET_KEY_FALLBACKS``.
  
  .. note::
-2025-12-11 21:18:52,604 - INFO - Grading answer for django__django-16631...
-2025-12-11 21:18:52,604 - INFO - report: {'django__django-16631': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_fallback_secret)']}, 'PASS_TO_PASS': {'success': ['test_get_user (auth_tests.test_basic.TestGetUser.test_get_user)', 'test_get_user_anonymous (auth_tests.test_basic.TestGetUser.test_get_user_anonymous)', 'The current user model can be retrieved', 'Check the creation and properties of a superuser', 'test_superuser_no_email_or_password (auth_tests.test_basic.BasicTestCase.test_superuser_no_email_or_password)', 'The current user model can be swapped out for another', 'The alternate user setting must point to something in the format app.model', 'The current user model must point to an installed model', 'test_unicode_username (auth_tests.test_basic.BasicTestCase.test_unicode_username)', 'Users can be created and can set their password', 'Users can be created without an email', 'Default User model verbose names are translatable (#19945)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+ 
+diff --git a/docs/topics/signing.txt b/docs/topics/signing.txt
+index eaf1696b2c..2ada3fa0f4 100644
+--- a/docs/topics/signing.txt
++++ b/docs/topics/signing.txt
+@@ -35,8 +35,20 @@ data -- it is vital you keep this secure, or attackers could use it to
+ generate their own signed values.
+ 
+ :setting:`SECRET_KEY_FALLBACKS` can be used to rotate secret keys. The
+-values will not be used to sign data, but if specified, they will be used to
+-validate signed data and must be kept secure.
++values are not used to sign new data, but are consulted when verifying
++signatures by the signing framework (for example, the :class:`~Signer`
++class and :func:`django.core.signing.loads`). Django checks the current
++:setting:`SECRET_KEY` first, then the values in :setting:`SECRET_KEY_FALLBACKS`
++in order. Values in :setting:`SECRET_KEY_FALLBACKS` must be kept secure.
++
++Note: Some lower-level functions call :func:`django.utils.crypto.salted_hmac`
++without passing an explicit ``secret`` argument. Those calls use
++:setting:`SECRET_KEY` directly and do not consult
++:setting:`SECRET_KEY_FALLBACKS`. For example,
++:meth:`~django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash`
++uses :func:`salted_hmac` without an explicit secret, so rotating
++:setting:`SECRET_KEY` will invalidate existing session authentication hashes
++even if the old key is present in :setting:`SECRET_KEY_FALLBACKS`.
+ 
+ Using the low-level API
+ =======================
+@@ -119,6 +131,8 @@ generate signatures. You can use a different secret by passing it to the
+     :py:mod:`hashlib`, it defaults to ``'sha256'``. ``fallback_keys`` is a list
+     of additional values used to validate signed data, defaults to
+     :setting:`SECRET_KEY_FALLBACKS`.
++    When verifying signatures, the signer checks the primary key first and then each
++    value in ``fallback_keys`` in the order provided.
+ 
+     .. deprecated:: 4.2
+2025-12-11 22:17:50,589 - INFO - Grading answer for django__django-16631...
+2025-12-11 22:17:50,590 - INFO - report: {'django__django-16631': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_fallback_secret)']}, 'PASS_TO_PASS': {'success': ['test_get_user (auth_tests.test_basic.TestGetUser.test_get_user)', 'test_get_user_anonymous (auth_tests.test_basic.TestGetUser.test_get_user_anonymous)', 'The current user model can be retrieved', 'Check the creation and properties of a superuser', 'test_superuser_no_email_or_password (auth_tests.test_basic.BasicTestCase.test_superuser_no_email_or_password)', 'The current user model can be swapped out for another', 'The alternate user setting must point to something in the format app.model', 'The current user model must point to an installed model', 'test_unicode_username (auth_tests.test_basic.BasicTestCase.test_unicode_username)', 'Users can be created and can set their password', 'Users can be created without an email', 'Default User model verbose names are translatable (#19945)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for django__django-16631: resolved: False
-2025-12-11 21:18:52,605 - INFO - Attempting to stop container sweb.eval.django__django-16631.my_evaluation_run...
-2025-12-11 21:19:07,759 - INFO - Attempting to remove container sweb.eval.django__django-16631.my_evaluation_run...
-2025-12-11 21:19:07,773 - INFO - Container sweb.eval.django__django-16631.my_evaluation_run removed.
+2025-12-11 22:17:50,590 - INFO - Attempting to stop container sweb.eval.django__django-16631.my_evaluation_run...
+2025-12-11 22:18:05,705 - INFO - Attempting to remove container sweb.eval.django__django-16631.my_evaluation_run...
+2025-12-11 22:18:05,723 - INFO - Container sweb.eval.django__django-16631.my_evaluation_run removed.

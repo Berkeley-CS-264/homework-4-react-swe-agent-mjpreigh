@@ -294,11 +294,11 @@ export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
 running install
 running bdist_egg
 running egg_info
-writing top-level names to Django.egg-info/top_level.txt
-writing entry points to Django.egg-info/entry_points.txt
 writing Django.egg-info/PKG-INFO
 writing requirements to Django.egg-info/requires.txt
 writing dependency_links to Django.egg-info/dependency_links.txt
+writing entry points to Django.egg-info/entry_points.txt
+writing top-level names to Django.egg-info/top_level.txt
 reading manifest file 'Django.egg-info/SOURCES.txt'
 reading manifest template 'MANIFEST.in'
 warning: no previously-included files matching '__pycache__' found anywhere in distribution
@@ -6648,7 +6648,7 @@ test_squashmigrations_valid_start (migrations.test_commands.SquashMigrationsTest
 test_ticket_23799_squashmigrations_no_optimize (migrations.test_commands.SquashMigrationsTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 63 tests in 0.443s
+Ran 63 tests in 0.514s
 
 OK
  OK

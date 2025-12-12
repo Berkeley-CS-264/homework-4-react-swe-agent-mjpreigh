@@ -1,20 +1,30 @@
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..38b51694df 100644
+index ea5baca08d..223b0581a3 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -160,7 +160,14 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
-         # RemovedInDjango40Warning: when the deprecation ends, replace with:
-         #   context = self.get_context_data()
-         context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
+@@ -157,10 +157,21 @@ class TemplateResponseMixin:
+ class TemplateView(TemplateResponseMixin, ContextMixin, View):
+     """Render a template."""
+     def get(self, request, *args, **kwargs):
+-        # RemovedInDjango40Warning: when the deprecation ends, replace with:
+-        #   context = self.get_context_data()
+-        context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
 -        context = self.get_context_data(**context_kwargs)
-+        # Pass the real URL kwargs to get_context_data to avoid passing
-+        # SimpleLazyObject instances into user code (e.g. view filtering).
++        # Call get_context_data() with the raw URL kwargs. Wrapping the URL
++        # kwargs in SimpleLazyObject caused those lazy objects to be passed
++        # into get_context_data() (and potentially into any DB lookups that
++        # occur there), which could cause errors when the wrapped value is
++        # not a plain Python type (see #31420). Instead wrap any URL kwargs
++        # that are present in the returned context so the deprecation warning
++        # is emitted when the value is actually accessed from the template.
 +        context = self.get_context_data(**kwargs)
-+        # Ensure the template context still contains the deprecation-wrapping
-+        # SimpleLazyObject values for URL kwargs, unless the view explicitly
-+        # provided a value for that key in get_context_data().
-+        for key, value in context_kwargs.items():
-+            context.setdefault(key, value)
++        # Wrap any URL kwargs that the context contains with the existing
++        # deprecation-warning SimpleLazyObject wrapper so the warning is
++        # emitted lazily when the template accesses the value.
++        wrapped_url_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
++        for key, wrapper in wrapped_url_kwargs.items():
++            if key in context:
++                context[key] = wrapper
          return self.render_to_response(context)
  
  

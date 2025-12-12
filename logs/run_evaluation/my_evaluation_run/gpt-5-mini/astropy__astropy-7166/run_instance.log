@@ -1,147 +1,201 @@
-2025-12-11 21:18:31,036 - INFO - Creating container for astropy__astropy-7166...
-2025-12-11 21:18:31,112 - INFO - Container for astropy__astropy-7166 created: 3b8348fc5b942a3f2d45523bca2b28a30e65e318164a874aeb9067458d4cae5f
-2025-12-11 21:18:31,263 - INFO - Container for astropy__astropy-7166 started: 3b8348fc5b942a3f2d45523bca2b28a30e65e318164a874aeb9067458d4cae5f
-2025-12-11 21:18:31,264 - INFO - Intermediate patch for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/patch.diff, now applying to container...
-2025-12-11 21:18:31,436 - INFO - >>>>> Applied Patch:
+2025-12-11 22:17:21,884 - INFO - Creating container for astropy__astropy-7166...
+2025-12-11 22:17:21,939 - INFO - Container for astropy__astropy-7166 created: b807fc50b4ace953a0b445b59d4b900ffa421447cc8340c5eb0baf3e379b2020
+2025-12-11 22:17:22,045 - INFO - Container for astropy__astropy-7166 started: b807fc50b4ace953a0b445b59d4b900ffa421447cc8340c5eb0baf3e379b2020
+2025-12-11 22:17:22,046 - INFO - Intermediate patch for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/patch.diff, now applying to container...
+2025-12-11 22:17:22,224 - INFO - >>>>> Applied Patch:
 Checking patch astropy/utils/misc.py...
 Applied patch astropy/utils/misc.py cleanly.
 
-2025-12-11 21:18:32,036 - INFO - Git diff before:
+2025-12-11 22:17:22,576 - INFO - Git diff before:
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..e22e79ed9 100644
+index de3fb01d1..6376b335b 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -528,15 +528,59 @@ class InheritDocstrings(type):
+@@ -519,7 +519,6 @@ class InheritDocstrings(type):
+         >>> B.wiggle.__doc__
+         u'Wiggle the thingamajig'
+     """
+-
+     def __init__(cls, name, bases, dct):
+         def is_public_member(key):
+             return (
+@@ -528,14 +527,72 @@ class InheritDocstrings(type):
                  not key.startswith('_'))
  
          for key, val in dct.items():
-+            # Functions (regular methods)
-             if (inspect.isfunction(val) and
+-            if (inspect.isfunction(val) and
 -                is_public_member(key) and
 -                val.__doc__ is None):
-+                    is_public_member(key) and
-+                    val.__doc__ is None):
-                 for base in cls.__mro__[1:]:
-                     super_method = getattr(base, key, None)
-                     if super_method is not None:
-                         val.__doc__ = super_method.__doc__
-                         break
- 
-+            # Properties: copy docstrings for the fget/fset/fdel from base
-+            # properties if they're missing on the subclass.
-+            elif (isinstance(val, property) and is_public_member(key)):
-+                # Only bother if there is at least one missing docstring
-+                need_fget = (val.fget is not None and val.fget.__doc__ is None)
-+                need_fset = (val.fset is not None and val.fset.__doc__ is None)
-+                need_fdel = (val.fdel is not None and val.fdel.__doc__ is None)
++            if not is_public_member(key):
++                continue
 +
-+                if not (need_fget or need_fset or need_fdel):
++            # Collect target functions to possibly update their __doc__.
++            # Each item is a tuple (func, role) where role is one of
++            # None (regular function), or 'fget'/'fset'/'fdel' for property parts.
++            targets = []
++
++            # plain function defined in class body
++            if inspect.isfunction(val):
++                targets.append((val, None))
++
++            # staticmethod or classmethod wrapper
++            elif isinstance(val, (staticmethod, classmethod)):
++                func = getattr(val, "__func__", None)
++                if inspect.isfunction(func):
++                    targets.append((func, None))
++
++            # property: handle fget, fset, fdel individually
++            elif isinstance(val, property):
++                for attr in ('fget', 'fset', 'fdel'):
++                    func = getattr(val, attr)
++                    if func is not None and inspect.isfunction(func) and func.__doc__ is None:
++                        targets.append((func, attr))
++
++            # Nothing to do
++            if not targets:
++                continue
++
++            for func, role in targets:
++                # only try to inherit if no docstring is set
++                if getattr(func, '__doc__', None) is not None:
 +                    continue
 +
-+                for base in cls.__mro__[1:]:
-+                    base_prop = getattr(base, key, None)
-+                    if not isinstance(base_prop, property):
+                 for base in cls.__mro__[1:]:
+-                    super_method = getattr(base, key, None)
+-                    if super_method is not None:
+-                        val.__doc__ = super_method.__doc__
+-                        break
++                    super_attr = getattr(base, key, None)
++                    if super_attr is None:
 +                        continue
 +
-+                    # Copy fget, fset, fdel docstrings individually if missing
-+                    if need_fget and base_prop.fget is not None:
-+                        try:
-+                            val.fget.__doc__ = base_prop.fget.__doc__
-+                        except Exception:
-+                            # Be defensive: if for some reason we can't set it,
-+                            # just skip copying.
-+                            pass
-+                        need_fget = False
++                    # If the super attribute is a property, pick the corresponding
++                    # fget/fset/fdel function
++                    if isinstance(super_attr, property) and role in ('fget', 'fset', 'fdel'):
++                        base_func = getattr(super_attr, role)
++                        if base_func is not None:
++                            func.__doc__ = getattr(base_func, '__doc__', None)
++                            break
 +
-+                    if need_fset and base_prop.fset is not None:
-+                        try:
-+                            val.fset.__doc__ = base_prop.fset.__doc__
-+                        except Exception:
-+                            pass
-+                        need_fset = False
++                    # If the super attribute is a staticmethod or classmethod,
++                    # extract the wrapped function
++                    elif isinstance(super_attr, (staticmethod, classmethod)):
++                        base_func = getattr(super_attr, '__func__', None)
++                        if base_func is not None:
++                            func.__doc__ = getattr(base_func, '__doc__', None)
++                            break
 +
-+                    if need_fdel and base_prop.fdel is not None:
-+                        try:
-+                            val.fdel.__doc__ = base_prop.fdel.__doc__
-+                        except Exception:
-+                            pass
-+                        need_fdel = False
-+
-+                    if not (need_fget or need_fset or need_fdel):
-+                        break
-+
++                    else:
++                        # For regular callables or functions (including functions
++                        # retrieved from the class dict), try to extract the
++                        # underlying function object and its __doc__.
++                        base_func = super_attr
++                        # bound methods on functions may have __func__
++                        if hasattr(base_func, '__func__'):
++                            base_func = base_func.__func__
++                        func.__doc__ = getattr(base_func, '__doc__', None)
++                        if getattr(func, '__doc__', None) is not None:
++                            break
+ 
          super().__init__(name, bases, dct)
-2025-12-11 21:18:32,037 - INFO - Eval script for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/eval.sh; copying to container...
-2025-12-11 21:18:37,787 - INFO - Test runtime: 5.69 seconds
-2025-12-11 21:18:37,787 - INFO - Test output for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/test_output.txt
-2025-12-11 21:18:37,913 - INFO - Git diff after:
+2025-12-11 22:17:22,576 - INFO - Eval script for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/eval.sh; copying to container...
+2025-12-11 22:17:28,896 - INFO - Test runtime: 6.26 seconds
+2025-12-11 22:17:28,897 - INFO - Test output for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/test_output.txt
+2025-12-11 22:17:29,024 - INFO - Git diff after:
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..e22e79ed9 100644
+index de3fb01d1..6376b335b 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -528,15 +528,59 @@ class InheritDocstrings(type):
+@@ -519,7 +519,6 @@ class InheritDocstrings(type):
+         >>> B.wiggle.__doc__
+         u'Wiggle the thingamajig'
+     """
+-
+     def __init__(cls, name, bases, dct):
+         def is_public_member(key):
+             return (
+@@ -528,14 +527,72 @@ class InheritDocstrings(type):
                  not key.startswith('_'))
  
          for key, val in dct.items():
-+            # Functions (regular methods)
-             if (inspect.isfunction(val) and
+-            if (inspect.isfunction(val) and
 -                is_public_member(key) and
 -                val.__doc__ is None):
-+                    is_public_member(key) and
-+                    val.__doc__ is None):
-                 for base in cls.__mro__[1:]:
-                     super_method = getattr(base, key, None)
-                     if super_method is not None:
-                         val.__doc__ = super_method.__doc__
-                         break
- 
-+            # Properties: copy docstrings for the fget/fset/fdel from base
-+            # properties if they're missing on the subclass.
-+            elif (isinstance(val, property) and is_public_member(key)):
-+                # Only bother if there is at least one missing docstring
-+                need_fget = (val.fget is not None and val.fget.__doc__ is None)
-+                need_fset = (val.fset is not None and val.fset.__doc__ is None)
-+                need_fdel = (val.fdel is not None and val.fdel.__doc__ is None)
++            if not is_public_member(key):
++                continue
 +
-+                if not (need_fget or need_fset or need_fdel):
++            # Collect target functions to possibly update their __doc__.
++            # Each item is a tuple (func, role) where role is one of
++            # None (regular function), or 'fget'/'fset'/'fdel' for property parts.
++            targets = []
++
++            # plain function defined in class body
++            if inspect.isfunction(val):
++                targets.append((val, None))
++
++            # staticmethod or classmethod wrapper
++            elif isinstance(val, (staticmethod, classmethod)):
++                func = getattr(val, "__func__", None)
++                if inspect.isfunction(func):
++                    targets.append((func, None))
++
++            # property: handle fget, fset, fdel individually
++            elif isinstance(val, property):
++                for attr in ('fget', 'fset', 'fdel'):
++                    func = getattr(val, attr)
++                    if func is not None and inspect.isfunction(func) and func.__doc__ is None:
++                        targets.append((func, attr))
++
++            # Nothing to do
++            if not targets:
++                continue
++
++            for func, role in targets:
++                # only try to inherit if no docstring is set
++                if getattr(func, '__doc__', None) is not None:
 +                    continue
 +
-+                for base in cls.__mro__[1:]:
-+                    base_prop = getattr(base, key, None)
-+                    if not isinstance(base_prop, property):
+                 for base in cls.__mro__[1:]:
+-                    super_method = getattr(base, key, None)
+-                    if super_method is not None:
+-                        val.__doc__ = super_method.__doc__
+-                        break
++                    super_attr = getattr(base, key, None)
++                    if super_attr is None:
 +                        continue
 +
-+                    # Copy fget, fset, fdel docstrings individually if missing
-+                    if need_fget and base_prop.fget is not None:
-+                        try:
-+                            val.fget.__doc__ = base_prop.fget.__doc__
-+                        except Exception:
-+                            # Be defensive: if for some reason we can't set it,
-+                            # just skip copying.
-+                            pass
-+                        need_fget = False
++                    # If the super attribute is a property, pick the corresponding
++                    # fget/fset/fdel function
++                    if isinstance(super_attr, property) and role in ('fget', 'fset', 'fdel'):
++                        base_func = getattr(super_attr, role)
++                        if base_func is not None:
++                            func.__doc__ = getattr(base_func, '__doc__', None)
++                            break
 +
-+                    if need_fset and base_prop.fset is not None:
-+                        try:
-+                            val.fset.__doc__ = base_prop.fset.__doc__
-+                        except Exception:
-+                            pass
-+                        need_fset = False
++                    # If the super attribute is a staticmethod or classmethod,
++                    # extract the wrapped function
++                    elif isinstance(super_attr, (staticmethod, classmethod)):
++                        base_func = getattr(super_attr, '__func__', None)
++                        if base_func is not None:
++                            func.__doc__ = getattr(base_func, '__doc__', None)
++                            break
 +
-+                    if need_fdel and base_prop.fdel is not None:
-+                        try:
-+                            val.fdel.__doc__ = base_prop.fdel.__doc__
-+                        except Exception:
-+                            pass
-+                        need_fdel = False
-+
-+                    if not (need_fget or need_fset or need_fdel):
-+                        break
-+
++                    else:
++                        # For regular callables or functions (including functions
++                        # retrieved from the class dict), try to extract the
++                        # underlying function object and its __doc__.
++                        base_func = super_attr
++                        # bound methods on functions may have __func__
++                        if hasattr(base_func, '__func__'):
++                            base_func = base_func.__func__
++                        func.__doc__ = getattr(base_func, '__doc__', None)
++                        if getattr(func, '__doc__', None) is not None:
++                            break
+ 
          super().__init__(name, bases, dct)
-2025-12-11 21:18:37,913 - INFO - Grading answer for astropy__astropy-7166...
-2025-12-11 21:18:37,914 - INFO - report: {'astropy__astropy-7166': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/utils/tests/test_misc.py::test_inherit_docstrings']}, 'PASS_TO_PASS': {'success': ['astropy/utils/tests/test_misc.py::test_isiterable', 'astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure', 'astropy/utils/tests/test_misc.py::test_skip_hidden', 'astropy/utils/tests/test_misc.py::test_JsonCustomEncoder', 'astropy/utils/tests/test_misc.py::test_check_broadcast', 'astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+2025-12-11 22:17:29,024 - INFO - Grading answer for astropy__astropy-7166...
+2025-12-11 22:17:29,026 - INFO - report: {'astropy__astropy-7166': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/utils/tests/test_misc.py::test_inherit_docstrings']}, 'PASS_TO_PASS': {'success': ['astropy/utils/tests/test_misc.py::test_isiterable', 'astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure', 'astropy/utils/tests/test_misc.py::test_skip_hidden', 'astropy/utils/tests/test_misc.py::test_JsonCustomEncoder', 'astropy/utils/tests/test_misc.py::test_check_broadcast', 'astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for astropy__astropy-7166: resolved: False
-2025-12-11 21:18:37,914 - INFO - Attempting to stop container sweb.eval.astropy__astropy-7166.my_evaluation_run...
-2025-12-11 21:18:53,040 - INFO - Attempting to remove container sweb.eval.astropy__astropy-7166.my_evaluation_run...
-2025-12-11 21:18:53,050 - INFO - Container sweb.eval.astropy__astropy-7166.my_evaluation_run removed.
+2025-12-11 22:17:29,026 - INFO - Attempting to stop container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-11 22:17:44,205 - INFO - Attempting to remove container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-11 22:17:44,215 - INFO - Container sweb.eval.astropy__astropy-7166.my_evaluation_run removed.

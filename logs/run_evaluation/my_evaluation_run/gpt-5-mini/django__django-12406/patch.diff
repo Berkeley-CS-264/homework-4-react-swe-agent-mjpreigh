@@ -1,18 +1,22 @@
 diff --git a/django/forms/widgets.py b/django/forms/widgets.py
-index 40ac1d3162..9845921346 100644
+index 40ac1d3162..9a54075628 100644
 --- a/django/forms/widgets.py
 +++ b/django/forms/widgets.py
-@@ -661,6 +661,13 @@ class ChoiceWidget(Widget):
-         """Return selected values as a list."""
-         if value is None and self.allow_multiple_selected:
-             return []
-+        # For radio widgets on required fields, don't pre-select the empty
-+        # value when rendering a new form (None initial). RadioSelect has an
-+        # inherent unfilled state, so rendering a checked blank radio option
-+        # (which happens when value is None -> [''] below) is misleading for
-+        # required model fields (e.g. ForeignKey with blank=False).
-+        if value is None and getattr(self, 'input_type', None) == 'radio' and getattr(self, 'is_required', False):
-+            return []
-         if not isinstance(value, (tuple, list)):
-             value = [value]
-         return [str(v) if v is not None else '' for v in value]
+@@ -600,9 +600,16 @@ class ChoiceWidget(Widget):
+             groups.append((group_name, subgroup, index))
+ 
+             for subvalue, sublabel in choices:
++                # Don't select the empty choice for radio widgets when the field
++                # is required and no value has been provided. RadioSelect has an
++                # inherent unfilled state so showing "---------" as checked is
++                # confusing for required fields.
++                empty_choice = (subvalue is None or subvalue == '')
++                no_value_selected = (value == [''])
+                 selected = (
+                     str(subvalue) in value and
+-                    (not has_selected or self.allow_multiple_selected)
++                    (not has_selected or self.allow_multiple_selected) and
++                    not (self.input_type == 'radio' and self.is_required and empty_choice and no_value_selected)
+                 )
+                 has_selected |= selected
+                 subgroup.append(self.create_option(

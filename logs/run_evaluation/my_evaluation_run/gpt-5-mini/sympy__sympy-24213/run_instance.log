@@ -1,79 +1,51 @@
-2025-12-11 21:19:17,826 - INFO - Creating container for sympy__sympy-24213...
-2025-12-11 21:19:17,847 - INFO - Container for sympy__sympy-24213 created: fc5db9d581e0e0ca8b88c791bdba94edb519c22abda4cf07844c15641c683a0d
-2025-12-11 21:19:17,913 - INFO - Container for sympy__sympy-24213 started: fc5db9d581e0e0ca8b88c791bdba94edb519c22abda4cf07844c15641c683a0d
-2025-12-11 21:19:17,914 - INFO - Intermediate patch for sympy__sympy-24213 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-24213/patch.diff, now applying to container...
-2025-12-11 21:19:18,045 - INFO - >>>>> Applied Patch:
+2025-12-11 22:18:09,110 - INFO - Creating container for sympy__sympy-24213...
+2025-12-11 22:18:09,142 - INFO - Container for sympy__sympy-24213 created: f22c8cf11bd2cf8b16ae6b9ba8bd4d040c619f952f30f7cdb2f9fc6cc732a447
+2025-12-11 22:18:09,210 - INFO - Container for sympy__sympy-24213 started: f22c8cf11bd2cf8b16ae6b9ba8bd4d040c619f952f30f7cdb2f9fc6cc732a447
+2025-12-11 22:18:09,211 - INFO - Intermediate patch for sympy__sympy-24213 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-24213/patch.diff, now applying to container...
+2025-12-11 22:18:09,336 - INFO - >>>>> Applied Patch:
 Checking patch sympy/physics/units/unitsystem.py...
 Applied patch sympy/physics/units/unitsystem.py cleanly.
 
-2025-12-11 21:19:18,342 - INFO - Git diff before:
+2025-12-11 22:18:09,631 - INFO - Git diff before:
 diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
-index a436880c4b..2ddaa465a7 100644
+index a436880c4b..1f202d2e65 100644
 --- a/sympy/physics/units/unitsystem.py
 +++ b/sympy/physics/units/unitsystem.py
-@@ -172,10 +172,22 @@ def _collect_factor_and_dimension(self, expr):
-             return factor ** exp_factor, dim ** (exp_factor * exp_dim)
-         elif isinstance(expr, Add):
-             factor, dim = self._collect_factor_and_dimension(expr.args[0])
-+            # allow addition of dimensionally equivalent (but not necessarily
-+            # identical) dimensions, e.g. acceleration*time and velocity
-+            try:
-+                ds = self.get_dimension_system()
-+            except Exception:
-+                ds = None
+@@ -175,7 +175,10 @@ def _collect_factor_and_dimension(self, expr):
              for addend in expr.args[1:]:
--                addend_factor, addend_dim = \
--                    self._collect_factor_and_dimension(addend)
+                 addend_factor, addend_dim = \
+                     self._collect_factor_and_dimension(addend)
 -                if dim != addend_dim:
-+                addend_factor, addend_dim = self._collect_factor_and_dimension(addend)
-+                compatible = (dim == addend_dim)
-+                if not compatible and ds is not None:
-+                    # use the dimension system's equivalence test if available
-+                    try:
-+                        compatible = ds.equivalent_dims(dim, addend_dim)
-+                    except Exception:
-+                        compatible = False
-+                if not compatible:
++                # Allow addition of quantities whose dimensions are
++                # equivalent in the current dimension system (for example
++                # acceleration*time is equivalent to velocity).
++                if dim != addend_dim and not self.get_dimension_system().equivalent_dims(dim, addend_dim):
                      raise ValueError(
                          'Dimension of "{}" is {}, '
                          'but it should be {}'.format(
-2025-12-11 21:19:18,343 - INFO - Eval script for sympy__sympy-24213 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-24213/eval.sh; copying to container...
-2025-12-11 21:19:22,600 - INFO - Test runtime: 4.21 seconds
-2025-12-11 21:19:22,600 - INFO - Test output for sympy__sympy-24213 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-24213/test_output.txt
-2025-12-11 21:19:22,687 - INFO - Git diff after:
+2025-12-11 22:18:09,632 - INFO - Eval script for sympy__sympy-24213 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-24213/eval.sh; copying to container...
+2025-12-11 22:18:13,928 - INFO - Test runtime: 4.24 seconds
+2025-12-11 22:18:13,928 - INFO - Test output for sympy__sympy-24213 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-24213/test_output.txt
+2025-12-11 22:18:14,012 - INFO - Git diff after:
 diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
-index a436880c4b..2ddaa465a7 100644
+index a436880c4b..1f202d2e65 100644
 --- a/sympy/physics/units/unitsystem.py
 +++ b/sympy/physics/units/unitsystem.py
-@@ -172,10 +172,22 @@ def _collect_factor_and_dimension(self, expr):
-             return factor ** exp_factor, dim ** (exp_factor * exp_dim)
-         elif isinstance(expr, Add):
-             factor, dim = self._collect_factor_and_dimension(expr.args[0])
-+            # allow addition of dimensionally equivalent (but not necessarily
-+            # identical) dimensions, e.g. acceleration*time and velocity
-+            try:
-+                ds = self.get_dimension_system()
-+            except Exception:
-+                ds = None
+@@ -175,7 +175,10 @@ def _collect_factor_and_dimension(self, expr):
              for addend in expr.args[1:]:
--                addend_factor, addend_dim = \
--                    self._collect_factor_and_dimension(addend)
+                 addend_factor, addend_dim = \
+                     self._collect_factor_and_dimension(addend)
 -                if dim != addend_dim:
-+                addend_factor, addend_dim = self._collect_factor_and_dimension(addend)
-+                compatible = (dim == addend_dim)
-+                if not compatible and ds is not None:
-+                    # use the dimension system's equivalence test if available
-+                    try:
-+                        compatible = ds.equivalent_dims(dim, addend_dim)
-+                    except Exception:
-+                        compatible = False
-+                if not compatible:
++                # Allow addition of quantities whose dimensions are
++                # equivalent in the current dimension system (for example
++                # acceleration*time is equivalent to velocity).
++                if dim != addend_dim and not self.get_dimension_system().equivalent_dims(dim, addend_dim):
                      raise ValueError(
                          'Dimension of "{}" is {}, '
                          'but it should be {}'.format(
-2025-12-11 21:19:22,687 - INFO - Grading answer for sympy__sympy-24213...
-2025-12-11 21:19:22,688 - INFO - report: {'sympy__sympy-24213': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_issue_24211'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_str_repr', 'test_eq', 'test_convert_to', 'test_Quantity_definition', 'test_abbrev', 'test_print', 'test_Quantity_eq', 'test_add_sub', 'test_quantity_abs', 'test_check_unit_consistency', 'test_mul_div', 'test_units', 'test_issue_quart', 'test_issue_5565', 'test_find_unit', 'test_Quantity_derivative', 'test_quantity_postprocessing', 'test_factor_and_dimension', 'test_dimensional_expr_of_derivative', 'test_get_dimensional_expr_with_function', 'test_binary_information', 'test_conversion_with_2_nonstandard_dimensions', 'test_eval_subs', 'test_issue_14932', 'test_issue_14547', 'test_deprecated_quantity_methods', 'test_issue_22164', 'test_issue_22819', 'test_issue_20288', 'test_issue_24062', 'test_prefixed_property'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+2025-12-11 22:18:14,012 - INFO - Grading answer for sympy__sympy-24213...
+2025-12-11 22:18:14,013 - INFO - report: {'sympy__sympy-24213': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_issue_24211'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_str_repr', 'test_eq', 'test_convert_to', 'test_Quantity_definition', 'test_abbrev', 'test_print', 'test_Quantity_eq', 'test_add_sub', 'test_quantity_abs', 'test_check_unit_consistency', 'test_mul_div', 'test_units', 'test_issue_quart', 'test_issue_5565', 'test_find_unit', 'test_Quantity_derivative', 'test_quantity_postprocessing', 'test_factor_and_dimension', 'test_dimensional_expr_of_derivative', 'test_get_dimensional_expr_with_function', 'test_binary_information', 'test_conversion_with_2_nonstandard_dimensions', 'test_eval_subs', 'test_issue_14932', 'test_issue_14547', 'test_deprecated_quantity_methods', 'test_issue_22164', 'test_issue_22819', 'test_issue_20288', 'test_issue_24062', 'test_prefixed_property'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for sympy__sympy-24213: resolved: True
-2025-12-11 21:19:22,688 - INFO - Attempting to stop container sweb.eval.sympy__sympy-24213.my_evaluation_run...
-2025-12-11 21:19:37,807 - INFO - Attempting to remove container sweb.eval.sympy__sympy-24213.my_evaluation_run...
-2025-12-11 21:19:37,821 - INFO - Container sweb.eval.sympy__sympy-24213.my_evaluation_run removed.
+2025-12-11 22:18:14,014 - INFO - Attempting to stop container sweb.eval.sympy__sympy-24213.my_evaluation_run...
+2025-12-11 22:18:29,123 - INFO - Attempting to remove container sweb.eval.sympy__sympy-24213.my_evaluation_run...
+2025-12-11 22:18:29,138 - INFO - Container sweb.eval.sympy__sympy-24213.my_evaluation_run removed.

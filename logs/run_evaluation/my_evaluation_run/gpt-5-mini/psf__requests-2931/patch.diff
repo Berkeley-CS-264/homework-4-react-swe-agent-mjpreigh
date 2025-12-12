@@ -1,42 +1,16 @@
-diff --git a/requests/utils.py b/requests/utils.py
-index 132cd2b..ec47d45 100644
---- a/requests/utils.py
-+++ b/requests/utils.py
-@@ -689,19 +689,25 @@ def to_native_string(string, encoding='ascii'):
-     string in the native string type, encoding and decoding where necessary.
-     This assumes ASCII unless told otherwise.
-     """
--    out = None
--
-+    # If it's already the native string type (e.g. `str` on Python 3,
-+    # `unicode` on Python 2), return it unchanged.
-     if isinstance(string, builtin_str):
--        out = string
--    else:
--        if is_py2:
--            out = string.encode(encoding)
--        else:
--            out = string.decode(encoding)
--
--    return out
--
--
-+        return string
-+
-+    # If this is a bytes object, do not attempt to decode it on Python 3
-+    # because it may be binary data (e.g. file contents or an explicitly-
-+    # encoded payload). Return bytes unchanged.
-+    if isinstance(string, bytes):
-+        return string
-+
-+    # On Python 2, non-native text types (e.g. `unicode`) should be encoded to
-+    # the native `str` type.
-+    if is_py2:
-+        return string.encode(encoding)
-+
-+    # On Python 3, decode remaining objects to `str`. At this point we've
-+    # already handled `bytes` above.
-+    return string.decode(encoding)
- def urldefragauth(url):
-     """
-     Given a url remove the fragment and the authentication part
+diff --git a/requests/models.py b/requests/models.py
+index 9c624d3..15dbc3a 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -80,8 +80,10 @@ class RequestEncodingMixin(object):
+         if parameters are supplied as a dict.
+         """
+ 
+-        if isinstance(data, (str, bytes)):
++        if isinstance(data, str):
+             return to_native_string(data)
++        elif isinstance(data, (bytes, bytearray)):
++            return data
+         elif hasattr(data, 'read'):
+             return data
+         elif hasattr(data, '__iter__'):

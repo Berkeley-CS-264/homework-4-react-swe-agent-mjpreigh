@@ -38,7 +38,9 @@
                     "test_requests.py::TestRequests::test_get_auth_from_url_encoded_hashes",
                     "test_requests.py::TestRequests::test_http_error",
                     "test_requests.py::TestRequests::test_transport_adapter_ordering",
+                    "test_requests.py::TestRequests::test_long_authinfo_in_url",
                     "test_requests.py::TestRequests::test_nonhttp_schemes_dont_check_URLs",
+                    "test_requests.py::TestRequests::test_basic_auth_str_is_always_native",
                     "test_requests.py::TestContentEncodingDetection::test_html4_pragma",
                     "test_requests.py::TestContentEncodingDetection::test_html_charset",
                     "test_requests.py::TestContentEncodingDetection::test_none",
@@ -96,9 +98,7 @@
                     "test_requests.py::test_vendor_aliases"
                 ],
                 "failure": [
-                    "test_requests.py::TestRequests::test_params_bytes_are_encoded",
-                    "test_requests.py::TestRequests::test_long_authinfo_in_url",
-                    "test_requests.py::TestRequests::test_basic_auth_str_is_always_native"
+                    "test_requests.py::TestRequests::test_params_bytes_are_encoded"
                 ]
             },
             "FAIL_TO_FAIL": {

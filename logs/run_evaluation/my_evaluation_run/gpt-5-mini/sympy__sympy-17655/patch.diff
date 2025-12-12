@@ -1,27 +1,17 @@
-diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..ad126543b0 100644
---- a/sympy/geometry/point.py
-+++ b/sympy/geometry/point.py
-@@ -216,7 +216,21 @@ def __add__(self, other):
-         try:
-             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
-         except TypeError:
--            raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            # Allow adding a scalar-multiplied Point like 2*Point(...)
-+            # In some cases (e.g. Float * Point) SymPy builds a Mul object
-+            # instead of deferring to Point.__rmul__. Detect that case
-+            # here and construct the scaled Point explicitly.
-+            from sympy import Mul
-+            if isinstance(other, Mul):
-+                pts = [a for a in other.args if isinstance(a, Point)]
-+                if len(pts) == 1:
-+                    factor = Mul(*[a for a in other.args if a is not pts[0]])
-+                    scaled = pts[0] * factor
-+                    s, o = Point._normalize_dimension(self, scaled)
-+                else:
-+                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            else:
-+                raise GeometryError("Don't know how to add {} and a Point object".format(other))
- 
-         coords = [simplify(a + b) for a, b in zip(s, o)]
+*** Begin Patch
+*** Update File: sympy/geometry/point.py
+@@
+     def __mul__(self, factor):
+@@
+         factor = sympify(factor)
+         coords = [simplify(x*factor) for x in self.args]
          return Point(coords, evaluate=False)
++
++    def __rmul__(self, factor):
++        """Right multiplication so that scalar * Point works the same
++        as Point * scalar.
++        """
++        return self * factor
+*** End Patch
+
+No changes detected to generate a patch.

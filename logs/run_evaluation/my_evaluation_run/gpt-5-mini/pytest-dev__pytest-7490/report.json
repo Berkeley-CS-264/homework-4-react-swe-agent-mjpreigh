@@ -6,11 +6,11 @@
         "resolved": false,
         "tests_status": {
             "FAIL_TO_PASS": {
-                "success": [
+                "success": [],
+                "failure": [
                     "testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_failed",
                     "testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_passed_strict"
-                ],
-                "failure": []
+                ]
             },
             "PASS_TO_PASS": {
                 "success": [
@@ -77,6 +77,7 @@
                     "testing/test_skipping.py::test_reportchars_error",
                     "testing/test_skipping.py::test_reportchars_all",
                     "testing/test_skipping.py::test_reportchars_all_error",
+                    "testing/test_skipping.py::test_errors_in_xfail_skip_expressions",
                     "testing/test_skipping.py::test_xfail_skipif_with_globals",
                     "testing/test_skipping.py::test_default_markers",
                     "testing/test_skipping.py::test_xfail_test_setup_exception",
@@ -92,9 +93,7 @@
                     "testing/test_skipping.py::test_summary_list_after_errors",
                     "testing/test_skipping.py::test_relpath_rootdir"
                 ],
-                "failure": [
-                    "testing/test_skipping.py::test_errors_in_xfail_skip_expressions"
-                ]
+                "failure": []
             },
             "FAIL_TO_FAIL": {
                 "success": [],

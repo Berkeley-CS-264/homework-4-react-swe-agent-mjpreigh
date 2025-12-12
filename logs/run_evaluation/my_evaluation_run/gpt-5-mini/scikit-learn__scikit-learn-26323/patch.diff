@@ -1,36 +1,28 @@
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..752469adf 100644
+index 4eddd12b1..133929704 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -293,6 +293,8 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+@@ -293,13 +293,21 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
              Estimator instance.
          """
          super().set_output(transform=transform)
-+        # Set output on all transformers declared in the transformers list
-+        # as well as on the fitted transformers (transformers_).
-         transformers = (
+-        transformers = (
++        # Collect transformers from both the user-specified list and any fitted
++        # transformers. We also include the `remainder` estimator when it is an
++        # estimator (not 'passthrough' or 'drop'), because `remainder` is not
++        # present in self.transformers but should also have its output config
++        # set.
++        transformers = [
              trans
              for _, trans, _ in chain(
-@@ -303,6 +305,22 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+                 self.transformers, getattr(self, "transformers_", [])
+             )
+             if trans not in {"passthrough", "drop"}
+-        )
++        ]
++        rem = getattr(self, "remainder", None)
++        if rem is not None and rem not in {"passthrough", "drop"} and rem not in transformers:
++            transformers.append(rem)
          for trans in transformers:
              _safe_set_output(trans, transform=transform)
  
-+        # Also ensure that the ``remainder`` estimator (if any) has its output
-+        # configured. When `transformers_` is present and a fitted remainder
-+        # transformer has been added, it will have been handled above. We only
-+        # need to set the output on self.remainder when it is an estimator and
-+        # was not already covered.
-+        rem = getattr(self, "remainder", None)
-+        rem_already_handled = False
-+        if hasattr(self, "transformers_"):
-+            for name, trans, _ in getattr(self, "transformers_", []):
-+                if name == "remainder" and trans not in {"passthrough", "drop"}:
-+                    rem_already_handled = True
-+                    break
-+
-+        if rem is not None and rem not in {"passthrough", "drop"} and not rem_already_handled:
-+            _safe_set_output(rem, transform=transform)
-+
-         return self
- 
-     def get_params(self, deep=True):

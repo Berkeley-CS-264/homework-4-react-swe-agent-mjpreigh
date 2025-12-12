@@ -1,28 +1,19 @@
 diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
-index d8cb75a5f..4d2e0c7b2 100644
+index d8cb75a5f..81251d35d 100644
 --- a/sphinx/ext/napoleon/docstring.py
 +++ b/sphinx/ext/napoleon/docstring.py
-@@ -266,8 +266,21 @@ class GoogleDocstring:
-         if parse_type:
-             match = _google_typed_arg_regex.match(before)
-             if match:
--                _name = match.group(1).strip()
--                _type = match.group(2)
-+                # Normal form: "name(type)"
-+                # But also handle the variant "type(...) name" where the
-+                # regex can match the leading "type(...)" leaving a trailing
-+                # token which actually is the parameter name. In that case,
-+                # prefer interpreting the leading parenthesized expression
-+                # as the type and the trailing token as the name.
-+                endpos = match.end()
-+                trailing = before[endpos:].strip()
-+                if trailing:
-+                    # leading parenthesized portion is the type; trailing is name
-+                    _type = before[:endpos].strip()
-+                    _name = trailing
-+                else:
-+                    _name = match.group(1).strip()
-+                    _type = match.group(2)
+@@ -28,7 +28,13 @@ logger = logging.getLogger(__name__)
  
-         _name = self._escape_args_and_kwargs(_name)
- 
+ _directive_regex = re.compile(r'\.\. \S+::')
+ _google_section_regex = re.compile(r'^(\s|\w)+:\s*$')
+-_google_typed_arg_regex = re.compile(r'(.+?)\(\s*(.*[^\s]+)\s*\)')
++_google_typed_arg_regex = re.compile(
++    # Match exactly "name(type)" (possibly with surrounding whitespace).
++    # Anchors are important so that strings like "dict(str, str) opc_meta"
++    # (which are of the form "type name") are NOT mistaken for the
++    # "name(type)" Google-style form.
++    r'^\s*([A-Za-z0-9_\*]+)\s*\(\s*(.*?)\s*\)\s*$'
++)
+ _numpy_section_regex = re.compile(r'^[=\-`:\'"~^_*+#<>]{2,}\s*$')
+ _single_colon_regex = re.compile(r'(?<!:):(?!:)')
+ _xref_or_code_regex = re.compile(

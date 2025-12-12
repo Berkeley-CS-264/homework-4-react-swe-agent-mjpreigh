@@ -3,7 +3,7 @@
         "patch_is_None": false,
         "patch_exists": true,
         "patch_successfully_applied": true,
-        "resolved": false,
+        "resolved": true,
         "tests_status": {
             "FAIL_TO_PASS": {
                 "success": [
@@ -53,6 +53,7 @@
                     "Temporary redirects are an option",
                     "A template view can be customized to return extra context.",
                     "A generic template view passes kwargs as context.",
+                    "test_template_params_warning (generic_views.test_base.DeprecationTests)",
                     "test_cached_views (generic_views.test_base.TemplateViewTest)",
                     "test_content_type (generic_views.test_base.TemplateViewTest)",
                     "test_extra_context (generic_views.test_base.TemplateViewTest)",
@@ -65,9 +66,7 @@
                     "test_template_engine (generic_views.test_base.TemplateViewTest)",
                     "test_template_name_required (generic_views.test_base.TemplateViewTest)"
                 ],
-                "failure": [
-                    "test_template_params_warning (generic_views.test_base.DeprecationTests)"
-                ]
+                "failure": []
             },
             "FAIL_TO_FAIL": {
                 "success": [],

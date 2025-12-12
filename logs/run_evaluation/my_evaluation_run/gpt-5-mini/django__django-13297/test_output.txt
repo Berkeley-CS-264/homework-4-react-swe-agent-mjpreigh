@@ -157,22 +157,32 @@ Date:   Wed Sep 10 11:04:59 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 8954f255bbf5f4ee997fd6de62cb50fc9b5dd697
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..38b51694df 100644
+index ea5baca08d..223b0581a3 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -160,7 +160,14 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
-         # RemovedInDjango40Warning: when the deprecation ends, replace with:
-         #   context = self.get_context_data()
-         context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
+@@ -157,10 +157,21 @@ class TemplateResponseMixin:
+ class TemplateView(TemplateResponseMixin, ContextMixin, View):
+     """Render a template."""
+     def get(self, request, *args, **kwargs):
+-        # RemovedInDjango40Warning: when the deprecation ends, replace with:
+-        #   context = self.get_context_data()
+-        context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
 -        context = self.get_context_data(**context_kwargs)
-+        # Pass the real URL kwargs to get_context_data to avoid passing
-+        # SimpleLazyObject instances into user code (e.g. view filtering).
++        # Call get_context_data() with the raw URL kwargs. Wrapping the URL
++        # kwargs in SimpleLazyObject caused those lazy objects to be passed
++        # into get_context_data() (and potentially into any DB lookups that
++        # occur there), which could cause errors when the wrapped value is
++        # not a plain Python type (see #31420). Instead wrap any URL kwargs
++        # that are present in the returned context so the deprecation warning
++        # is emitted when the value is actually accessed from the template.
 +        context = self.get_context_data(**kwargs)
-+        # Ensure the template context still contains the deprecation-wrapping
-+        # SimpleLazyObject values for URL kwargs, unless the view explicitly
-+        # provided a value for that key in get_context_data().
-+        for key, value in context_kwargs.items():
-+            context.setdefault(key, value)
++        # Wrap any URL kwargs that the context contains with the existing
++        # deprecation-warning SimpleLazyObject wrapper so the warning is
++        # emitted lazily when the template accesses the value.
++        wrapped_url_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
++        for key, wrapper in wrapped_url_kwargs.items():
++            if key in context:
++                context[key] = wrapper
          return self.render_to_response(context)
  
  
@@ -327,7 +337,7 @@ A template view can be customized to return extra context. ... ok
 test_template_params (generic_views.test_base.DeprecationTests)
 A generic template view passes kwargs as context. ... ok
 test_template_params_filtering (generic_views.test_base.DeprecationTests) ... ok
-test_template_params_warning (generic_views.test_base.DeprecationTests) ... FAIL
+test_template_params_warning (generic_views.test_base.DeprecationTests) ... ok
 test_get_context_data_super (generic_views.test_base.GetContextDataTest) ... ok
 test_object_at_custom_name_in_context_data (generic_views.test_base.GetContextDataTest) ... ok
 test_object_in_get_context_data (generic_views.test_base.GetContextDataTest) ... ok
@@ -397,26 +407,7 @@ test_options_for_post_view (generic_views.test_base.ViewTest) ... ok
 test_overridden_setup (generic_views.test_base.ViewTest) ... ok
 test_pathological_http_method (generic_views.test_base.ViewTest) ... ok
 test_setup_adds_args_kwargs_request (generic_views.test_base.ViewTest) ... ok
-test_setup_get_and_head (generic_views.test_base.ViewTest) ... ok
-
-======================================================================
-FAIL: test_template_params_warning (generic_views.test_base.DeprecationTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/generic_views/test_base.py", line 605, in test_template_params_warning
-    str(response.context['foo1'])
-  File "/opt/miniconda3/envs/testbed/lib/python3.6/contextlib.py", line 88, in __exit__
-    next(self.gen)
-  File "/testbed/django/test/testcases.py", line 693, in _assert_raises_or_warns_cm
-    yield cm
-AssertionError: RemovedInDjango40Warning not raised
-
-----------------------------------------------------------------------
-Ran 59 tests in 3.082s
-
-FAILED (failures=1)
-Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
-Testing against Django installed in '/testbed/django'
+test_setup_get_and_head (generic_views.test_base.ViewTest) ... Testing against Django installed in '/testbed/django'
 Importing application generic_views
 Skipping setup of unused database(s): other.
 Operations to perform:
@@ -442,6 +433,13 @@ Running migrations:
   Applying sites.0001_initial... OK
   Applying sites.0002_alter_domain_unique... OK
 System check identified no issues (0 silenced).
+ok
+
+----------------------------------------------------------------------
+Ran 59 tests in 3.136s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
 + : '>>>>> End Test Output'
 + git checkout 8954f255bbf5f4ee997fd6de62cb50fc9b5dd697 tests/generic_views/test_base.py
 Updated 1 path from 289deb388c

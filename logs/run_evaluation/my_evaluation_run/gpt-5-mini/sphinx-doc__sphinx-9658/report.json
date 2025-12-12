@@ -12,7 +12,8 @@
                 ]
             },
             "PASS_TO_PASS": {
-                "success": [
+                "success": [],
+                "failure": [
                     "tests/test_util_typing.py::test_restify",
                     "tests/test_util_typing.py::test_restify_type_hints_containers",
                     "tests/test_util_typing.py::test_restify_type_hints_Callable",
@@ -37,8 +38,7 @@
                     "tests/test_util_typing.py::test_stringify_type_Literal",
                     "tests/test_util_typing.py::test_stringify_broken_type_hints",
                     "tests/test_util_typing.py::test_stringify_mock"
-                ],
-                "failure": []
+                ]
             },
             "FAIL_TO_FAIL": {
                 "success": [],
