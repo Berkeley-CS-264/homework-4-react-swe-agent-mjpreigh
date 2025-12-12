@@ -146,14 +146,18 @@ Date:   Wed Sep 10 11:39:47 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff e4430f22c8e3d29ce5d9d0263fba57121938d06d
 diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
-index 14dab517c9..6758440afd 100644
+index 14dab517c9..7bea6b8cc6 100644
 --- a/django/core/servers/basehttp.py
 +++ b/django/core/servers/basehttp.py
-@@ -79,7 +79,7 @@ class WSGIServer(simple_server.WSGIServer):
+@@ -79,7 +79,11 @@ class WSGIServer(simple_server.WSGIServer):
  
  class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
      """A threaded version of the WSGIServer"""
 -    daemon_threads = True
++    # Use non-daemon worker threads so the server waits for them to finish
++    # during shutdown. Daemon threads may be terminated abruptly which can
++    # prevent per-thread cleanup (for example, closing DB connections),
++    # leading to issues when tearing down test databases.
 +    daemon_threads = False
  
  
@@ -299,8 +303,8 @@ Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/test
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-4.0.dev20250910113947-0.editable-py3-none-any.whl size=26054 sha256=f0ce85def400aa9545920f05530ccc5ca6d645b7534c15ebe82187b40f15b5b3
-  Stored in directory: /tmp/pip-ephem-wheel-cache-5w0aobdb/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+  Created wheel for Django: filename=django-4.0.dev20250910113947-0.editable-py3-none-any.whl size=26054 sha256=6873d9ddc80615b829b73391f0f09d1e069bd80164468fef03430e2fef273a73
+  Stored in directory: /tmp/pip-ephem-wheel-cache-8nfdv9o0/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -338,8 +342,8 @@ Running migrations:
   Applying admin.0002_logentry_remove_auto_add... OK
   Applying admin.0003_logentry_add_action_flag_choices... OK
   Applying sites.0001_initial... OK
-  Applying sites.0002_alter_domain_unique... OK
-Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+  Applying sites.0002_alter_domain_unique...Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+ OK
 System check identified no issues (0 silenced).
 ERROR
 ERROR

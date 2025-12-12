@@ -157,30 +157,32 @@ Date:   Wed Sep 10 11:04:59 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 8954f255bbf5f4ee997fd6de62cb50fc9b5dd697
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..87574849c6 100644
+index ea5baca08d..bd1414b485 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -160,6 +160,21 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
-         # RemovedInDjango40Warning: when the deprecation ends, replace with:
-         #   context = self.get_context_data()
-         context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
-+        # Evaluate any SimpleLazyObject values so view code receives plain values
-+        # (this avoids accidental passing of lazy wrappers into DB lookups, etc.).
-+        for key, value in list(context_kwargs.items()):
-+            try:
-+                from django.utils.functional import SimpleLazyObject
-+            except Exception:
-+                SimpleLazyObject = None
-+            if SimpleLazyObject is not None and isinstance(value, SimpleLazyObject):
+@@ -27,6 +27,23 @@ class ContextMixin:
+         kwargs.setdefault('view', self)
+         if self.extra_context is not None:
+             kwargs.update(self.extra_context)
++        # Ensure SimpleLazyObject values are resolved to their underlying
++        # objects when returning the context. URL kwargs are wrapped in
++        # SimpleLazyObject (see _wrap_url_kwargs_with_deprecation_warning),
++        # and leaving them as lazy proxies can cause unexpected type errors
++        # when view code uses those values (for example passing them to ORM
++        # filters). Force evaluation and replace the proxy with the wrapped
++        # object where possible.
++        for key, value in list(kwargs.items()):
++            if isinstance(value, SimpleLazyObject):
 +                try:
-+                    # Force initialization of the lazy object. _setup() will set _wrapped.
++                    # Force evaluation of the lazy object. _setup will populate
++                    # _wrapped with the actual value.
 +                    value._setup()
 +                except Exception:
-+                    # If setup fails, leave the lazy object in place.
++                    # If setup fails for any reason, leave the lazy object as-is.
 +                    continue
-+                context_kwargs[key] = getattr(value, '_wrapped', value)
-         context = self.get_context_data(**context_kwargs)
-         return self.render_to_response(context)
++                kwargs[key] = getattr(value, '_wrapped', value)
+         return kwargs
+ 
  
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
@@ -332,7 +334,7 @@ test_extra_template_params (generic_views.test_base.DeprecationTests)
 A template view can be customized to return extra context. ... ok
 test_template_params (generic_views.test_base.DeprecationTests)
 A generic template view passes kwargs as context. ... ok
-test_template_params_filtering (generic_views.test_base.DeprecationTests) ... ok
+test_template_params_filtering (generic_views.test_base.DeprecationTests) ... ERROR
 test_template_params_warning (generic_views.test_base.DeprecationTests) ... ok
 test_get_context_data_super (generic_views.test_base.GetContextDataTest) ... ok
 test_object_at_custom_name_in_context_data (generic_views.test_base.GetContextDataTest) ... ok
@@ -431,10 +433,61 @@ Running migrations:
 System check identified no issues (0 silenced).
 ok
 
+======================================================================
+ERROR: test_template_params_filtering (generic_views.test_base.DeprecationTests)
 ----------------------------------------------------------------------
-Ran 59 tests in 3.121s
+Traceback (most recent call last):
+  File "/testbed/django/db/backends/utils.py", line 84, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 412, in execute
+    return Database.Cursor.execute(self, query, params)
+sqlite3.InterfaceError: Error binding parameter 0 - probably unsupported type.
 
-OK
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/generic_views/test_base.py", line 622, in test_template_params_filtering
+    response = ArtistView.as_view()(self.rf.get('/'), artist_name=artist.name)
+  File "/testbed/django/views/generic/base.py", line 90, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "/testbed/django/views/generic/base.py", line 118, in dispatch
+    return handler(request, *args, **kwargs)
+  File "/testbed/django/views/generic/base.py", line 180, in get
+    context = self.get_context_data(**context_kwargs)
+  File "/testbed/tests/generic_views/test_base.py", line 618, in get_context_data
+    artist = Artist.objects.get(name=artist_name)
+  File "/testbed/django/db/models/manager.py", line 85, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 425, in get
+    num = len(clone)
+  File "/testbed/django/db/models/query.py", line 269, in __len__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1316, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/testbed/django/db/models/query.py", line 53, in __iter__
+    results = compiler.execute_sql(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size)
+  File "/testbed/django/db/models/sql/compiler.py", line 1163, in execute_sql
+    cursor.execute(sql, params)
+  File "/testbed/django/db/backends/utils.py", line 66, in execute
+    return self._execute_with_wrappers(sql, params, many=False, executor=self._execute)
+  File "/testbed/django/db/backends/utils.py", line 75, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "/testbed/django/db/backends/utils.py", line 84, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/utils.py", line 90, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/testbed/django/db/backends/utils.py", line 84, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 412, in execute
+    return Database.Cursor.execute(self, query, params)
+django.db.utils.InterfaceError: Error binding parameter 0 - probably unsupported type.
+
+----------------------------------------------------------------------
+Ran 59 tests in 3.124s
+
+FAILED (errors=1)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
 + : '>>>>> End Test Output'
 + git checkout 8954f255bbf5f4ee997fd6de62cb50fc9b5dd697 tests/generic_views/test_base.py

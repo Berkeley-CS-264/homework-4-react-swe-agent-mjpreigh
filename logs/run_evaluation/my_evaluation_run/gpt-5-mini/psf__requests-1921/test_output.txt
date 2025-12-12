@@ -146,29 +146,23 @@ Date:   Wed Sep 10 14:59:29 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 3c88e520da24ae6f736929a750876e7654accc3d
 diff --git a/requests/sessions.py b/requests/sessions.py
-index a023e4e..e8cbf95 100644
+index a023e4e..5da546e 100644
 --- a/requests/sessions.py
 +++ b/requests/sessions.py
-@@ -54,11 +54,19 @@ def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
+@@ -54,8 +54,12 @@ def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
      merged_setting = dict_class(to_key_val_list(session_setting))
      merged_setting.update(to_key_val_list(request_setting))
  
 -    # Remove keys that are set to None.
-+    # Remove keys that are set to None on the request (explicitly disabled).
-     for (k, v) in request_setting.items():
+-    for (k, v) in request_setting.items():
++    # Remove keys that are set to None in the merged result.
++    # If a key is explicitly set to None in either the session settings
++    # or the request settings, it should be omitted from the final mapping.
++    # (This handles the common case of session.headers['Some-Header'] = None
++    # meaning "do not send this header".)
++    for (k, v) in list(merged_setting.items()):
          if v is None:
              del merged_setting[k]
- 
-+    # Remove keys that are set to None on the session. This allows users to
-+    # disable a session-level default header by setting it to None, e.g.:
-+    #   session.headers['Accept-Encoding'] = None
-+    # but if the request explicitly provides a value for the header, honor it.
-+    for (k, v) in session_setting.items():
-+        if v is None and k not in request_setting:
-+            merged_setting.pop(k, None)
-+
-     return merged_setting
- 
  
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
@@ -301,8 +295,8 @@ Processing /testbed
 Building wheels for collected packages: requests
   Building wheel for requests (setup.py): started
   Building wheel for requests (setup.py): finished with status 'done'
-  Created wheel for requests: filename=requests-2.3.0-py2.py3-none-any.whl size=441544 sha256=17e8fd86ef728ee07720645ce2621a10894c50a9ab4afa7d0e5026d5c6795a27
-  Stored in directory: /tmp/pip-ephem-wheel-cache-ozbcgyo3/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+  Created wheel for requests: filename=requests-2.3.0-py2.py3-none-any.whl size=441527 sha256=2856f095099c34e86c80c9790a4b3592a11a35206f2bcade7e1b4c3b10c96610
+  Stored in directory: /tmp/pip-ephem-wheel-cache-3eq0hx3g/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
 Successfully built requests
 Installing collected packages: requests
   Attempting uninstall: requests
@@ -323,10 +317,47 @@ platform linux -- Python 3.9.20, pytest-7.4.4, pluggy-1.0.0
 rootdir: /testbed
 collected 119 items
 
-test_requests.py ..FFFF.FFFFFFFF..F..F......FFFFF.F..F.............F..F. [ 46%]
+test_requests.py FFFFFF.FFFFFFFF..F..F......FFFFF.F..F.............F..F. [ 46%]
 F.F...F......FF.....FF.FFF......................................         [100%]
 
 =================================== FAILURES ===================================
+____________ RequestsTestCase.test_BASICAUTH_TUPLE_HTTP_200_OK_GET _____________
+
+self = <test_requests.RequestsTestCase testMethod=test_BASICAUTH_TUPLE_HTTP_200_OK_GET>
+
+    def test_BASICAUTH_TUPLE_HTTP_200_OK_GET(self):
+        auth = ('user', 'pass')
+        url = httpbin('basic-auth', 'user', 'pass')
+    
+        r = requests.get(url, auth=auth)
+>       assert r.status_code == 200
+E       assert 503 == 200
+E        +  where 503 = <Response [503]>.status_code
+
+test_requests.py:251: AssertionError
+______________ RequestsTestCase.test_DIGESTAUTH_QUOTES_QOP_VALUE _______________
+
+self = <test_requests.RequestsTestCase testMethod=test_DIGESTAUTH_QUOTES_QOP_VALUE>
+
+    def test_DIGESTAUTH_QUOTES_QOP_VALUE(self):
+    
+        auth = HTTPDigestAuth('user', 'pass')
+        url = httpbin('digest-auth', 'auth', 'user', 'pass')
+    
+        r = requests.get(url, auth=auth)
+>       assert '"auth"' in r.request.headers['Authorization']
+
+test_requests.py:354: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = CaseInsensitiveDict({'User-Agent': 'python-requests/2.3.0 CPython/3.9.20 Linux/6.12.54-linuxkit', 'Accept-Encoding': 'gzip, deflate, compress', 'Accept': '*/*'})
+key = 'Authorization'
+
+    def __getitem__(self, key):
+>       return self._store[key.lower()][1]
+E       KeyError: 'authorization'
+
+requests/structures.py:77: KeyError
 _____________ RequestsTestCase.test_DIGESTAUTH_WRONG_HTTP_401_GET ______________
 
 self = <test_requests.RequestsTestCase testMethod=test_DIGESTAUTH_WRONG_HTTP_401_GET>
@@ -337,14 +368,11 @@ self = <test_requests.RequestsTestCase testMethod=test_DIGESTAUTH_WRONG_HTTP_401
         url = httpbin('digest-auth', 'auth', 'user', 'pass')
     
         r = requests.get(url, auth=auth)
-        assert r.status_code == 401
-    
-        r = requests.get(url)
 >       assert r.status_code == 401
 E       assert 503 == 401
 E        +  where 503 = <Response [503]>.status_code
 
-test_requests.py:341: AssertionError
+test_requests.py:338: AssertionError
 _______________ RequestsTestCase.test_DIGEST_AUTH_RETURNS_COOKIE _______________
 
 self = <test_requests.RequestsTestCase testMethod=test_DIGEST_AUTH_RETURNS_COOKIE>
@@ -1132,8 +1160,6 @@ test_requests.py::RequestsTestCase::test_BASICAUTH_TUPLE_HTTP_200_OK_GET
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 ==================================== PASSES ====================================
 =========================== short test summary info ============================
-PASSED test_requests.py::RequestsTestCase::test_BASICAUTH_TUPLE_HTTP_200_OK_GET
-PASSED test_requests.py::RequestsTestCase::test_DIGESTAUTH_QUOTES_QOP_VALUE
 PASSED test_requests.py::RequestsTestCase::test_DIGEST_STREAM
 PASSED test_requests.py::RequestsTestCase::test_autoset_header_values_are_native
 PASSED test_requests.py::RequestsTestCase::test_basic_building
@@ -1218,6 +1244,8 @@ PASSED test_requests.py::TestMorselToCookieExpires::test_expires_none
 PASSED test_requests.py::TestMorselToCookieExpires::test_expires_valid_str
 PASSED test_requests.py::TestMorselToCookieMaxAge::test_max_age_invalid_str
 PASSED test_requests.py::TestMorselToCookieMaxAge::test_max_age_valid_int
+FAILED test_requests.py::RequestsTestCase::test_BASICAUTH_TUPLE_HTTP_200_OK_GET
+FAILED test_requests.py::RequestsTestCase::test_DIGESTAUTH_QUOTES_QOP_VALUE
 FAILED test_requests.py::RequestsTestCase::test_DIGESTAUTH_WRONG_HTTP_401_GET
 FAILED test_requests.py::RequestsTestCase::test_DIGEST_AUTH_RETURNS_COOKIE - ...
 FAILED test_requests.py::RequestsTestCase::test_DIGEST_AUTH_SETS_SESSION_COOKIES
@@ -1251,7 +1279,7 @@ FAILED test_requests.py::RequestsTestCase::test_unicode_multipart_post - asse...
 FAILED test_requests.py::RequestsTestCase::test_uppercase_scheme_redirect - a...
 FAILED test_requests.py::RequestsTestCase::test_urlencoded_get_query_multivalued_param
 FAILED test_requests.py::RequestsTestCase::test_user_agent_transfers - Assert...
-============= 33 failed, 86 passed, 3 warnings in 91.88s (0:01:31) =============
+================== 35 failed, 84 passed, 3 warnings in 11.62s ==================
 + : '>>>>> End Test Output'
 + git checkout 3c88e520da24ae6f736929a750876e7654accc3d test_requests.py
 Updated 1 path from cf441cd

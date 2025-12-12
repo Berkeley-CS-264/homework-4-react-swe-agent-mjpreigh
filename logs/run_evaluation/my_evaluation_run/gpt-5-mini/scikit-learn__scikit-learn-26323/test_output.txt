@@ -153,25 +153,48 @@ Date:   Wed Sep 10 15:57:59 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 586f4318ffcdfbd9a1093f35ad43e81983740b66
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..a8d841a6e 100644
+index 4eddd12b1..83ee20cf1 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -303,6 +303,15 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
-         for trans in transformers:
+@@ -293,14 +293,30 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+             Estimator instance.
+         """
+         super().set_output(transform=transform)
+-        transformers = (
+-            trans
+-            for _, trans, _ in chain(
+-                self.transformers, getattr(self, "transformers_", [])
+-            )
+-            if trans not in {"passthrough", "drop"}
+-        )
+-        for trans in transformers:
++
++        # Collect all transformers the user provided (unfitted), any fitted
++        # transformers (transformers_), and also the remainder estimator when it
++        # is an estimator (and not one of the special strings). This ensures
++        # that calling set_output before fit also configures the remainder.
++        transformers_list = []
++        transformers_list.extend(list(self.transformers))
++        transformers_list.extend(list(getattr(self, "transformers_", [])))
++
++        # If remainder is an estimator (and not 'passthrough' or 'drop'),
++        # include it when not already present. We use the name 'remainder'
++        # to avoid duplicating when transformers_ already contains it.
++        try:
++            remainder = self.remainder
++        except AttributeError:
++            remainder = None
++
++        if remainder is not None and remainder not in {"passthrough", "drop"}:
++            if not any(name == "remainder" for name, _, *_ in transformers_list):
++                transformers_list.append(("remainder", remainder, None))
++
++        for _, trans, _ in transformers_list:
++            if trans in {"passthrough", "drop"}:
++                continue
              _safe_set_output(trans, transform=transform)
  
-+        # Ensure remainder estimator also has its output configured when it's an
-+        # estimator and specified on the ColumnTransformer (before fit).
-+        # Note: when transformers_ exists (post-fit) the remainder fitted
-+        # transformer will be included in transformers_ and thus already handled
-+        # above. This handles the pre-fit case where self.remainder is an
-+        # estimator provided by the user.
-+        if self.remainder not in {"passthrough", "drop"}:
-+            _safe_set_output(self.remainder, transform=transform)
-+
          return self
- 
-     def get_params(self, deep=True):
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -318,12 +341,12 @@ Obtaining file:///testbed
   Running command python setup.py egg_info
   Partial import of sklearn during the build process.
   running egg_info
-  creating /tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info
-  writing /tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info/PKG-INFO
-  writing dependency_links to /tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info/dependency_links.txt
-  writing requirements to /tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info/requires.txt
-  writing top-level names to /tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info/top_level.txt
-  writing manifest file '/tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info/SOURCES.txt'
+  creating /tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info
+  writing /tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info/dependency_links.txt
+  writing requirements to /tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info/requires.txt
+  writing top-level names to /tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info/SOURCES.txt'
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
@@ -530,7 +553,7 @@ Obtaining file:///testbed
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
-  reading manifest file '/tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info/SOURCES.txt'
+  reading manifest file '/tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info/SOURCES.txt'
   reading manifest template 'MANIFEST.in'
   warning: no previously-included files matching '*' found under directory 'asv_benchmarks'
   warning: no previously-included files matching '*' found under directory 'benchmarks'
@@ -550,7 +573,7 @@ Obtaining file:///testbed
   warning: no previously-included files found matching 'SECURITY.md'
   warning: no previously-included files found matching 'PULL_REQUEST_TEMPLATE.md'
   adding license file 'COPYING'
-  writing manifest file '/tmp/pip-pip-egg-info-u_rvnxbu/scikit_learn.egg-info/SOURCES.txt'
+  writing manifest file '/tmp/pip-pip-egg-info-8kgpbxxh/scikit_learn.egg-info/SOURCES.txt'
   Preparing metadata (setup.py): finished with status 'done'
 Requirement already satisfied: numpy>=1.17.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (1.26.4)
 Requirement already satisfied: scipy>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (1.13.0)
@@ -1046,7 +1069,7 @@ sklearn/compose/tests/test_column_transformer.py [32m.[0m[32m.[0m[32m.[0m
 [32mPASSED[0m sklearn/compose/tests/test_column_transformer.py::[1mtest_empty_selection_pandas_output[bool_int][0m
 [32mPASSED[0m sklearn/compose/tests/test_column_transformer.py::[1mtest_raise_error_if_index_not_aligned[0m
 [32mPASSED[0m sklearn/compose/tests/test_column_transformer.py::[1mtest_remainder_set_output[0m
-[32m============================= [32m[1m189 passed[0m[32m in 1.22s[0m[32m ==============================[0m
+[32m============================= [32m[1m189 passed[0m[32m in 1.13s[0m[32m ==============================[0m
 + : '>>>>> End Test Output'
 + git checkout 586f4318ffcdfbd9a1093f35ad43e81983740b66 sklearn/compose/tests/test_column_transformer.py
 Updated 1 path from cec545222

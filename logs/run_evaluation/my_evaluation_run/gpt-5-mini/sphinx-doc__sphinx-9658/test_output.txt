@@ -135,7 +135,7 @@ On branch master
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   sphinx/ext/autodoc/__init__.py
+	modified:   sphinx/util/typing.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -229,42 +229,98 @@ index 2b4504101..d865b8b37 100644
  ]
  
  extras_require = {
-diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
-index a255c0691..e59913839 100644
---- a/sphinx/ext/autodoc/__init__.py
-+++ b/sphinx/ext/autodoc/__init__.py
-@@ -1664,7 +1664,30 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
-             self.env.events.emit('autodoc-process-bases',
-                                  self.fullname, self.object, self.options, bases)
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index 87707d48f..cbe5522da 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -50,6 +50,24 @@ INVALID_BUILTIN_CLASSES = {
+ }
  
--            base_classes = [restify(cls) for cls in bases]
-+            # Format base classes. restify() does most of the work, but in some
-+            # cases (e.g. mocked/import-mocked classes) restify() may produce
-+            # a trailing module path like "torch.nn." without the class name.
-+            # Post-process those results to try to recover the class name from
-+            # the original object, falling back to object_description().
-+            base_classes = []
-+            for cls in bases:
-+                try:
-+                    sname = restify(cls)
-+                except Exception:
-+                    # If restify fails for some exotic object, use a safe fallback.
-+                    sname = object_description(cls)
+ 
++def _format_pyrole(role: str, module: str, name: str, tilde: bool = False) -> str:
++    """Format a Sphinx py:role reference safely.
++    If name is falsy, fall back to the module only (avoid producing a trailing dot).
++    """
++    # prefer name if provided
++    if name:
++        if tilde:
++            return f':py:{role}:`~{module}.{name}`'
++        else:
++            return f':py:{role}:`{module}.{name}`'
++    else:
++        # no name available -> fall back to module only
++        if tilde:
++            return f':py:{role}:`~{module}`'
++        else:
++            return f':py:{role}:`{module}`'
 +
-+                # If restify produced a trailing dot (module but no name),
-+                # try to recover the name from the object.
-+                if isinstance(sname, str) and sname.rstrip().endswith('.'):
-+                    name = safe_getattr(cls, '__name__', None) or safe_getattr(cls, '__qualname__', None)
-+                    if name:
-+                        sname = sname + name
-+                    else:
-+                        # last resort: a readable description of the object
-+                        sname = object_description(cls)
 +
-+                base_classes.append(sname)
-             sourcename = self.get_sourcename()
-             self.add_line('', sourcename)
-             self.add_line('   ' + _('Bases: %s') % ', '.join(base_classes), sourcename)
+ # Text like nodes which are initialized with text and rawsource
+ TextlikeNode = Union[nodes.Text, nodes.TextElement]
+ 
+@@ -168,9 +186,9 @@ def _restify_py37(cls: Optional[Type]) -> str:
+             text = restify(cls.__origin__)  # type: ignore
+         elif getattr(cls, '_name', None):
+             if cls.__module__ == 'typing':
+-                text = ':py:class:`~%s.%s`' % (cls.__module__, cls._name)
++                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=True)
+             else:
+-                text = ':py:class:`%s.%s`' % (cls.__module__, cls._name)
++                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=False)
+         else:
+             text = restify(cls.__origin__)
+ 
+@@ -190,12 +208,12 @@ def _restify_py37(cls: Optional[Type]) -> str:
+ 
+         return text
+     elif isinstance(cls, typing._SpecialForm):
+-        return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
++        return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
+     elif isinstance(cls, ForwardRef):
+         return ':py:class:`%s`' % cls.__forward_arg__
+     else:
+@@ -203,7 +221,7 @@ def _restify_py37(cls: Optional[Type]) -> str:
+         if cls.__module__ == 'typing':
+             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
+ 
+ 
+ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -275,13 +293,13 @@ def _restify_py36(cls: Optional[Type]) -> str:
+             return ':py:obj:`Union`'
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
+     elif hasattr(cls, '_name'):
+         # SpecialForm
+         if cls.__module__ == 'typing':
+-            return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
+         else:
+             return ':py:obj:`%s.%s`' % (cls.__module__, cls._name)
+     elif hasattr(cls, '__name__'):
+@@ -289,7 +307,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+         if cls.__module__ == 'typing':
+             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
+     else:
+         # others (ex. Any)
+         if cls.__module__ == 'typing':
 diff --git a/tox.ini b/tox.ini
 index b6a67fd85..483f2df92 100644
 --- a/tox.ini
@@ -445,8 +501,8 @@ Installing collected packages: Sphinx
       Successfully uninstalled Sphinx-4.3.0.dev20250910
   DEPRECATION: Legacy editable install of Sphinx[test]==4.3.0.dev20251212 from file:///testbed (setup.py develop) is deprecated. pip 25.0 will enforce this behaviour change. A possible replacement is to add a pyproject.toml or enable --use-pep517, and use setuptools >= 64. If the resulting installation is not behaving as expected, try using --config-settings editable_mode=compat. Please consult the setuptools documentation for more information. Discussion can be found at https://github.com/pypa/pip/issues/11457
   Running setup.py develop for Sphinx
-Successfully installed Sphinx
 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+Successfully installed Sphinx
 + git checkout 232dbe41c5250eb7d559d40438c4743483e95f15 tests/test_util_typing.py
 Updated 0 paths from efb20edb0
 + git apply -v -
@@ -474,11 +530,11 @@ tests/test_util_typing.py [32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32
         [94mwith[39;49;00m mock([[33m'[39;49;00m[33munknown[39;49;00m[33m'[39;49;00m]):[90m[39;49;00m
             [94mimport[39;49;00m [04m[96munknown[39;49;00m[90m[39;49;00m
 >           [94massert[39;49;00m restify(unknown.secret.Class) == [33m'[39;49;00m[33m:py:class:`unknown.secret.Class`[39;49;00m[33m'[39;49;00m[90m[39;49;00m
-[1m[31mE           AssertionError: assert ':py:class:`unknown.secret.`' == ':py:class:`u...secret.Class`'[0m
+[1m[31mE           AssertionError: assert ':py:class:`unknown.secret`' == ':py:class:`u...secret.Class`'[0m
 [1m[31mE             [0m
 [1m[31mE             - :py:class:`unknown.secret.Class`[0m
-[1m[31mE             ?                           -----[0m
-[1m[31mE             + :py:class:`unknown.secret.`[0m
+[1m[31mE             ?                          ------[0m
+[1m[31mE             + :py:class:`unknown.secret`[0m
 
 [1m[31mtests/test_util_typing.py[0m:177: AssertionError
 [33m=============================== warnings summary ===============================[0m
@@ -534,11 +590,11 @@ sphinx/registry.py:24
 [32mPASSED[0m tests/test_util_typing.py::[1mtest_stringify_mock[0m
 [33mSKIPPED[0m [1] tests/test_util_typing.py:162: python 3.10+ is required.
 [33mSKIPPED[0m [1] tests/test_util_typing.py:295: python 3.10+ is required.
-[31mFAILED[0m tests/test_util_typing.py::[1mtest_restify_mock[0m - AssertionError: assert ':py:class:`unknown.secret.`' == ':py:class:`u...sec...
+[31mFAILED[0m tests/test_util_typing.py::[1mtest_restify_mock[0m - AssertionError: assert ':py:class:`unknown.secret`' == ':py:class:`u...secr...
 [31m============= [31m[1m1 failed[0m, [32m24 passed[0m, [33m2 skipped[0m, [33m7 warnings[0m[31m in 0.17s[0m[31m ==============[0m
-py39: exit 1 (0.69 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_util_typing.py pid=83
-  py39: FAIL code 1 (0.71=setup[0.02]+cmd[0.69] seconds)
-  evaluation failed :( (0.78 seconds)
+py39: exit 1 (0.72 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_util_typing.py pid=83
+  py39: FAIL code 1 (0.74=setup[0.02]+cmd[0.72] seconds)
+  evaluation failed :( (0.81 seconds)
 + : '>>>>> End Test Output'
 + git checkout 232dbe41c5250eb7d559d40438c4743483e95f15 tests/test_util_typing.py
 Updated 1 path from efb20edb0

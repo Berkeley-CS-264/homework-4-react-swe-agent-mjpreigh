@@ -3,7 +3,7 @@
         "patch_is_None": false,
         "patch_exists": true,
         "patch_successfully_applied": true,
-        "resolved": false,
+        "resolved": true,
         "tests_status": {
             "FAIL_TO_PASS": {
                 "success": [
@@ -19,6 +19,7 @@
                     "test_requests.py::TestRequests::test_path_is_not_double_encoded",
                     "test_requests.py::TestRequests::test_params_are_added_before_fragment",
                     "test_requests.py::TestRequests::test_params_original_order_is_preserved_by_default",
+                    "test_requests.py::TestRequests::test_params_bytes_are_encoded",
                     "test_requests.py::TestRequests::test_connection_error_invalid_domain",
                     "test_requests.py::TestRequests::test_connection_error_invalid_port",
                     "test_requests.py::TestRequests::test_LocationParseError",
@@ -97,9 +98,7 @@
                     "test_requests.py::test_prepare_unicode_url",
                     "test_requests.py::test_vendor_aliases"
                 ],
-                "failure": [
-                    "test_requests.py::TestRequests::test_params_bytes_are_encoded"
-                ]
+                "failure": []
             },
             "FAIL_TO_FAIL": {
                 "success": [],

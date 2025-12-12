@@ -1,16 +1,16 @@
 diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
-index 8e8c3da06a..905ca73d5b 100644
+index 8e8c3da06a..ef1c99b99a 100644
 --- a/django/core/handlers/base.py
 +++ b/django/core/handlers/base.py
-@@ -50,12 +50,14 @@ class BaseHandler:
-             else:
+@@ -51,11 +51,15 @@ class BaseHandler:
                  middleware_is_async = middleware_can_async
              try:
--                # Adapt handler, if needed.
+                 # Adapt handler, if needed.
 -                handler = self.adapt_method_mode(
-+                # Adapt handler, if needed. Use a temporary variable so that if
-+                # the middleware factory raises MiddlewareNotUsed we don't
-+                # "poison" the handler variable with an adapted callable.
++                # Do not overwrite `handler` until middleware(...) succeeds,
++                # otherwise MiddlewareNotUsed raised by the middleware factory
++                # would leave the adapted handler in place and "poison"
++                # the next middleware in the loop.
 +                adapted_handler = self.adapt_method_mode(
                      middleware_is_async, handler, handler_is_async,
                      debug=settings.DEBUG, name='middleware %s' % middleware_path,

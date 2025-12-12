@@ -146,42 +146,38 @@ Date:   Wed Sep 10 11:44:44 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 179ee13eb37348cd87169a198aec18fedccc8668
 diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
-index 494890cc23..138edc104a 100644
+index 494890cc23..33f57979dd 100644
 --- a/django/contrib/staticfiles/storage.py
 +++ b/django/contrib/staticfiles/storage.py
-@@ -226,17 +226,29 @@ class HashedFilesMixin:
-             path for path in paths
-             if matches_patterns(path, self._patterns)
+@@ -228,7 +228,13 @@ class HashedFilesMixin:
          ]
-+
-+        # Keep track of names we've already yielded so we don't report the same
-+        # original file multiple times across multiple passes.
-+        yielded = set()
-+
          # Do a single pass first. Post-process all files once, then repeat for
--        # adjustable files.
-+        # adjustable files. Only yield a file the first time it's actually
-+        # post-processed (or if an exception occurred).
+         # adjustable files.
++        # Track names that have already been yielded to avoid duplicate yields for
++        # the same original file when multiple passes are necessary.
++        yielded = set()
          for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
--            yield name, hashed_name, processed
-+            if isinstance(processed, Exception) or processed:
-+                if name not in yielded:
-+                    yield name, hashed_name, processed
-+                    yielded.add(name)
++            if name in yielded:
++                continue
++            yielded.add(name)
+             yield name, hashed_name, processed
  
          paths = {path: paths[path] for path in adjustable_paths}
- 
+@@ -236,8 +242,13 @@ class HashedFilesMixin:
          for i in range(self.max_post_process_passes):
              substitutions = False
              for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
 -                yield name, hashed_name, processed
-+                if isinstance(processed, Exception) or processed:
-+                    if name not in yielded:
-+                        yield name, hashed_name, processed
-+                        yielded.add(name)
++                # Always account for whether substitutions occurred, even if we're
++                # skipping yielding this name because it was already yielded.
                  substitutions = substitutions or subst
++                if name in yielded:
++                    continue
++                yielded.add(name)
++                yield name, hashed_name, processed
  
              if not substitutions:
+                 break
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -323,8 +319,8 @@ Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/test
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-4.0-0.editable-py3-none-any.whl size=25589 sha256=f50c6a46e89937b4f5e7b9273a75cc77a1d6ecc810c1d80180eeefd4f0eaa577
-  Stored in directory: /tmp/pip-ephem-wheel-cache-qgvmy4kk/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+  Created wheel for Django: filename=django-4.0-0.editable-py3-none-any.whl size=25589 sha256=0728b0e700bb289b6f0454df80c089ba11aafa146645a441657f13f2fb10d855
+  Stored in directory: /tmp/pip-ephem-wheel-cache-gta0kxoi/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -383,7 +379,7 @@ test_collect_static_files_permissions (staticfiles_tests.test_storage.TestStatic
 test_collect_static_files_subclass_of_static_storage (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
 
 ----------------------------------------------------------------------
-Ran 32 tests in 0.378s
+Ran 32 tests in 0.401s
 
 OK
 + : '>>>>> End Test Output'

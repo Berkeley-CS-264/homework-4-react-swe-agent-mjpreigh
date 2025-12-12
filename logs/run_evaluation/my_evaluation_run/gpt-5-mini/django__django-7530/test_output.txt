@@ -294,10 +294,10 @@ export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
 running install
 running bdist_egg
 running egg_info
-writing dependency_links to Django.egg-info/dependency_links.txt
-writing requirements to Django.egg-info/requires.txt
-writing Django.egg-info/PKG-INFO
 writing entry points to Django.egg-info/entry_points.txt
+writing dependency_links to Django.egg-info/dependency_links.txt
+writing Django.egg-info/PKG-INFO
+writing requirements to Django.egg-info/requires.txt
 writing top-level names to Django.egg-info/top_level.txt
 reading manifest file 'Django.egg-info/SOURCES.txt'
 reading manifest template 'MANIFEST.in'
@@ -6648,7 +6648,7 @@ test_squashmigrations_valid_start (migrations.test_commands.SquashMigrationsTest
 test_ticket_23799_squashmigrations_no_optimize (migrations.test_commands.SquashMigrationsTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 63 tests in 0.453s
+Ran 63 tests in 0.490s
 
 OK
  OK

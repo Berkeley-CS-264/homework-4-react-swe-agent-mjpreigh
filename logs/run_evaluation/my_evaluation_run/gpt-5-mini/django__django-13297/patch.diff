@@ -1,26 +1,28 @@
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..87574849c6 100644
+index ea5baca08d..bd1414b485 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -160,6 +160,21 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
-         # RemovedInDjango40Warning: when the deprecation ends, replace with:
-         #   context = self.get_context_data()
-         context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
-+        # Evaluate any SimpleLazyObject values so view code receives plain values
-+        # (this avoids accidental passing of lazy wrappers into DB lookups, etc.).
-+        for key, value in list(context_kwargs.items()):
-+            try:
-+                from django.utils.functional import SimpleLazyObject
-+            except Exception:
-+                SimpleLazyObject = None
-+            if SimpleLazyObject is not None and isinstance(value, SimpleLazyObject):
+@@ -27,6 +27,23 @@ class ContextMixin:
+         kwargs.setdefault('view', self)
+         if self.extra_context is not None:
+             kwargs.update(self.extra_context)
++        # Ensure SimpleLazyObject values are resolved to their underlying
++        # objects when returning the context. URL kwargs are wrapped in
++        # SimpleLazyObject (see _wrap_url_kwargs_with_deprecation_warning),
++        # and leaving them as lazy proxies can cause unexpected type errors
++        # when view code uses those values (for example passing them to ORM
++        # filters). Force evaluation and replace the proxy with the wrapped
++        # object where possible.
++        for key, value in list(kwargs.items()):
++            if isinstance(value, SimpleLazyObject):
 +                try:
-+                    # Force initialization of the lazy object. _setup() will set _wrapped.
++                    # Force evaluation of the lazy object. _setup will populate
++                    # _wrapped with the actual value.
 +                    value._setup()
 +                except Exception:
-+                    # If setup fails, leave the lazy object in place.
++                    # If setup fails for any reason, leave the lazy object as-is.
 +                    continue
-+                context_kwargs[key] = getattr(value, '_wrapped', value)
-         context = self.get_context_data(**context_kwargs)
-         return self.render_to_response(context)
++                kwargs[key] = getattr(value, '_wrapped', value)
+         return kwargs
+ 
  

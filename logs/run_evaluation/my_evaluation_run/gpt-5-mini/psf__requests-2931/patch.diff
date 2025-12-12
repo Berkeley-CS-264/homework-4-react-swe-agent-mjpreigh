@@ -1,16 +1,39 @@
-diff --git a/requests/models.py b/requests/models.py
-index 9c624d3..8bce13c 100644
---- a/requests/models.py
-+++ b/requests/models.py
-@@ -80,8 +80,10 @@ class RequestEncodingMixin(object):
-         if parameters are supplied as a dict.
-         """
+diff --git a/requests/utils.py b/requests/utils.py
+index 132cd2b..3652c90 100644
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -689,19 +689,25 @@ def to_native_string(string, encoding='ascii'):
+     string in the native string type, encoding and decoding where necessary.
+     This assumes ASCII unless told otherwise.
+     """
+-    out = None
+-
++    # If it's already the native string type, just return it.
+     if isinstance(string, builtin_str):
+-        out = string
+-    else:
+-        if is_py2:
+-            out = string.encode(encoding)
+-        else:
+-            out = string.decode(encoding)
++        return string
  
--        if isinstance(data, (str, bytes)):
-+        if isinstance(data, str):
-             return to_native_string(data)
-+        elif isinstance(data, bytes):
-+            return data
-         elif hasattr(data, 'read'):
-             return data
-         elif hasattr(data, '__iter__'):
+-    return out
++    # Python 2: encode unicode to bytes using the given encoding.
++    if is_py2:
++        return string.encode(encoding)
+ 
++    # Python 3: avoid decoding arbitrary bytes into text. Decoding binary payloads
++    # with ASCII will raise. Attempt to decode bytes using the given encoding;
++    # if decoding fails, return the original bytes unchanged to preserve binary data.
++    if isinstance(string, bytes):
++        try:
++            return string.decode(encoding)
++        except UnicodeDecodeError:
++            return string
+ 
++    # Fallback: coerce to native str.
++    return str(string)
+ def urldefragauth(url):
+     """
+     Given a url remove the fragment and the authentication part

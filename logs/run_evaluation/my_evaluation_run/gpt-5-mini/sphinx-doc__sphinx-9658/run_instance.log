@@ -1,91 +1,203 @@
-2025-12-12 14:38:59,661 - INFO - Creating container for sphinx-doc__sphinx-9658...
-2025-12-12 14:38:59,696 - INFO - Container for sphinx-doc__sphinx-9658 created: 522c49fb9e2d1bbc2c95d26260da2890178a7f39d9fd210487eafd942a121bc5
-2025-12-12 14:38:59,772 - INFO - Container for sphinx-doc__sphinx-9658 started: 522c49fb9e2d1bbc2c95d26260da2890178a7f39d9fd210487eafd942a121bc5
-2025-12-12 14:38:59,772 - INFO - Intermediate patch for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/patch.diff, now applying to container...
-2025-12-12 14:38:59,877 - INFO - >>>>> Applied Patch:
-Checking patch sphinx/ext/autodoc/__init__.py...
-Applied patch sphinx/ext/autodoc/__init__.py cleanly.
+2025-12-12 15:01:21,660 - INFO - Creating container for sphinx-doc__sphinx-9658...
+2025-12-12 15:01:21,686 - INFO - Container for sphinx-doc__sphinx-9658 created: 713045550bbeaea5d161b52070ee514c3fc381f17d3dfb1b61e2d426f0e2760f
+2025-12-12 15:01:21,756 - INFO - Container for sphinx-doc__sphinx-9658 started: 713045550bbeaea5d161b52070ee514c3fc381f17d3dfb1b61e2d426f0e2760f
+2025-12-12 15:01:21,756 - INFO - Intermediate patch for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/patch.diff, now applying to container...
+2025-12-12 15:01:21,860 - INFO - >>>>> Applied Patch:
+Checking patch sphinx/util/typing.py...
+Applied patch sphinx/util/typing.py cleanly.
 
-2025-12-12 14:39:00,058 - INFO - Git diff before:
-diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
-index a255c0691..e59913839 100644
---- a/sphinx/ext/autodoc/__init__.py
-+++ b/sphinx/ext/autodoc/__init__.py
-@@ -1664,7 +1664,30 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
-             self.env.events.emit('autodoc-process-bases',
-                                  self.fullname, self.object, self.options, bases)
+2025-12-12 15:01:22,047 - INFO - Git diff before:
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index 87707d48f..cbe5522da 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -50,6 +50,24 @@ INVALID_BUILTIN_CLASSES = {
+ }
  
--            base_classes = [restify(cls) for cls in bases]
-+            # Format base classes. restify() does most of the work, but in some
-+            # cases (e.g. mocked/import-mocked classes) restify() may produce
-+            # a trailing module path like "torch.nn." without the class name.
-+            # Post-process those results to try to recover the class name from
-+            # the original object, falling back to object_description().
-+            base_classes = []
-+            for cls in bases:
-+                try:
-+                    sname = restify(cls)
-+                except Exception:
-+                    # If restify fails for some exotic object, use a safe fallback.
-+                    sname = object_description(cls)
-+
-+                # If restify produced a trailing dot (module but no name),
-+                # try to recover the name from the object.
-+                if isinstance(sname, str) and sname.rstrip().endswith('.'):
-+                    name = safe_getattr(cls, '__name__', None) or safe_getattr(cls, '__qualname__', None)
-+                    if name:
-+                        sname = sname + name
-+                    else:
-+                        # last resort: a readable description of the object
-+                        sname = object_description(cls)
-+
-+                base_classes.append(sname)
-             sourcename = self.get_sourcename()
-             self.add_line('', sourcename)
-             self.add_line('   ' + _('Bases: %s') % ', '.join(base_classes), sourcename)
-2025-12-12 14:39:00,059 - INFO - Eval script for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/eval.sh; copying to container...
-2025-12-12 14:39:03,290 - INFO - Test runtime: 3.17 seconds
-2025-12-12 14:39:03,291 - INFO - Test output for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/test_output.txt
-2025-12-12 14:39:03,387 - INFO - Git diff after:
-diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
-index a255c0691..e59913839 100644
---- a/sphinx/ext/autodoc/__init__.py
-+++ b/sphinx/ext/autodoc/__init__.py
-@@ -1664,7 +1664,30 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
-             self.env.events.emit('autodoc-process-bases',
-                                  self.fullname, self.object, self.options, bases)
  
--            base_classes = [restify(cls) for cls in bases]
-+            # Format base classes. restify() does most of the work, but in some
-+            # cases (e.g. mocked/import-mocked classes) restify() may produce
-+            # a trailing module path like "torch.nn." without the class name.
-+            # Post-process those results to try to recover the class name from
-+            # the original object, falling back to object_description().
-+            base_classes = []
-+            for cls in bases:
-+                try:
-+                    sname = restify(cls)
-+                except Exception:
-+                    # If restify fails for some exotic object, use a safe fallback.
-+                    sname = object_description(cls)
++def _format_pyrole(role: str, module: str, name: str, tilde: bool = False) -> str:
++    """Format a Sphinx py:role reference safely.
++    If name is falsy, fall back to the module only (avoid producing a trailing dot).
++    """
++    # prefer name if provided
++    if name:
++        if tilde:
++            return f':py:{role}:`~{module}.{name}`'
++        else:
++            return f':py:{role}:`{module}.{name}`'
++    else:
++        # no name available -> fall back to module only
++        if tilde:
++            return f':py:{role}:`~{module}`'
++        else:
++            return f':py:{role}:`{module}`'
 +
-+                # If restify produced a trailing dot (module but no name),
-+                # try to recover the name from the object.
-+                if isinstance(sname, str) and sname.rstrip().endswith('.'):
-+                    name = safe_getattr(cls, '__name__', None) or safe_getattr(cls, '__qualname__', None)
-+                    if name:
-+                        sname = sname + name
-+                    else:
-+                        # last resort: a readable description of the object
-+                        sname = object_description(cls)
 +
-+                base_classes.append(sname)
-             sourcename = self.get_sourcename()
-             self.add_line('', sourcename)
-             self.add_line('   ' + _('Bases: %s') % ', '.join(base_classes), sourcename)
-2025-12-12 14:39:03,387 - INFO - Grading answer for sphinx-doc__sphinx-9658...
-2025-12-12 14:39:03,389 - INFO - report: {'sphinx-doc__sphinx-9658': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['tests/test_util_typing.py::test_restify_mock']}, 'PASS_TO_PASS': {'success': ['tests/test_util_typing.py::test_restify', 'tests/test_util_typing.py::test_restify_type_hints_containers', 'tests/test_util_typing.py::test_restify_type_hints_Callable', 'tests/test_util_typing.py::test_restify_type_hints_Union', 'tests/test_util_typing.py::test_restify_type_hints_typevars', 'tests/test_util_typing.py::test_restify_type_hints_custom_class', 'tests/test_util_typing.py::test_restify_type_hints_alias', 'tests/test_util_typing.py::test_restify_type_ForwardRef', 'tests/test_util_typing.py::test_restify_type_Literal', 'tests/test_util_typing.py::test_restify_pep_585', 'tests/test_util_typing.py::test_restify_broken_type_hints', 'tests/test_util_typing.py::test_stringify', 'tests/test_util_typing.py::test_stringify_type_hints_containers', 'tests/test_util_typing.py::test_stringify_type_hints_pep_585', 'tests/test_util_typing.py::test_stringify_Annotated', 'tests/test_util_typing.py::test_stringify_type_hints_string', 'tests/test_util_typing.py::test_stringify_type_hints_Callable', 'tests/test_util_typing.py::test_stringify_type_hints_Union', 'tests/test_util_typing.py::test_stringify_type_hints_typevars', 'tests/test_util_typing.py::test_stringify_type_hints_custom_class', 'tests/test_util_typing.py::test_stringify_type_hints_alias', 'tests/test_util_typing.py::test_stringify_type_Literal', 'tests/test_util_typing.py::test_stringify_broken_type_hints', 'tests/test_util_typing.py::test_stringify_mock'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+ # Text like nodes which are initialized with text and rawsource
+ TextlikeNode = Union[nodes.Text, nodes.TextElement]
+ 
+@@ -168,9 +186,9 @@ def _restify_py37(cls: Optional[Type]) -> str:
+             text = restify(cls.__origin__)  # type: ignore
+         elif getattr(cls, '_name', None):
+             if cls.__module__ == 'typing':
+-                text = ':py:class:`~%s.%s`' % (cls.__module__, cls._name)
++                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=True)
+             else:
+-                text = ':py:class:`%s.%s`' % (cls.__module__, cls._name)
++                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=False)
+         else:
+             text = restify(cls.__origin__)
+ 
+@@ -190,12 +208,12 @@ def _restify_py37(cls: Optional[Type]) -> str:
+ 
+         return text
+     elif isinstance(cls, typing._SpecialForm):
+-        return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
++        return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
+     elif isinstance(cls, ForwardRef):
+         return ':py:class:`%s`' % cls.__forward_arg__
+     else:
+@@ -203,7 +221,7 @@ def _restify_py37(cls: Optional[Type]) -> str:
+         if cls.__module__ == 'typing':
+             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
+ 
+ 
+ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -275,13 +293,13 @@ def _restify_py36(cls: Optional[Type]) -> str:
+             return ':py:obj:`Union`'
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
+     elif hasattr(cls, '_name'):
+         # SpecialForm
+         if cls.__module__ == 'typing':
+-            return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
+         else:
+             return ':py:obj:`%s.%s`' % (cls.__module__, cls._name)
+     elif hasattr(cls, '__name__'):
+@@ -289,7 +307,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+         if cls.__module__ == 'typing':
+             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
+     else:
+         # others (ex. Any)
+         if cls.__module__ == 'typing':
+2025-12-12 15:01:22,048 - INFO - Eval script for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/eval.sh; copying to container...
+2025-12-12 15:01:25,376 - INFO - Test runtime: 3.28 seconds
+2025-12-12 15:01:25,377 - INFO - Test output for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/test_output.txt
+2025-12-12 15:01:25,455 - INFO - Git diff after:
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index 87707d48f..cbe5522da 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -50,6 +50,24 @@ INVALID_BUILTIN_CLASSES = {
+ }
+ 
+ 
++def _format_pyrole(role: str, module: str, name: str, tilde: bool = False) -> str:
++    """Format a Sphinx py:role reference safely.
++    If name is falsy, fall back to the module only (avoid producing a trailing dot).
++    """
++    # prefer name if provided
++    if name:
++        if tilde:
++            return f':py:{role}:`~{module}.{name}`'
++        else:
++            return f':py:{role}:`{module}.{name}`'
++    else:
++        # no name available -> fall back to module only
++        if tilde:
++            return f':py:{role}:`~{module}`'
++        else:
++            return f':py:{role}:`{module}`'
++
++
+ # Text like nodes which are initialized with text and rawsource
+ TextlikeNode = Union[nodes.Text, nodes.TextElement]
+ 
+@@ -168,9 +186,9 @@ def _restify_py37(cls: Optional[Type]) -> str:
+             text = restify(cls.__origin__)  # type: ignore
+         elif getattr(cls, '_name', None):
+             if cls.__module__ == 'typing':
+-                text = ':py:class:`~%s.%s`' % (cls.__module__, cls._name)
++                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=True)
+             else:
+-                text = ':py:class:`%s.%s`' % (cls.__module__, cls._name)
++                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=False)
+         else:
+             text = restify(cls.__origin__)
+ 
+@@ -190,12 +208,12 @@ def _restify_py37(cls: Optional[Type]) -> str:
+ 
+         return text
+     elif isinstance(cls, typing._SpecialForm):
+-        return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
++        return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
+     elif isinstance(cls, ForwardRef):
+         return ':py:class:`%s`' % cls.__forward_arg__
+     else:
+@@ -203,7 +221,7 @@ def _restify_py37(cls: Optional[Type]) -> str:
+         if cls.__module__ == 'typing':
+             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
+ 
+ 
+ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -275,13 +293,13 @@ def _restify_py36(cls: Optional[Type]) -> str:
+             return ':py:obj:`Union`'
+     elif hasattr(cls, '__qualname__'):
+         if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
+         else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
+     elif hasattr(cls, '_name'):
+         # SpecialForm
+         if cls.__module__ == 'typing':
+-            return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
+         else:
+             return ':py:obj:`%s.%s`' % (cls.__module__, cls._name)
+     elif hasattr(cls, '__name__'):
+@@ -289,7 +307,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+         if cls.__module__ == 'typing':
+             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
+         else:
+-            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
++            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
+     else:
+         # others (ex. Any)
+         if cls.__module__ == 'typing':
+2025-12-12 15:01:25,455 - INFO - Grading answer for sphinx-doc__sphinx-9658...
+2025-12-12 15:01:25,457 - INFO - report: {'sphinx-doc__sphinx-9658': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['tests/test_util_typing.py::test_restify_mock']}, 'PASS_TO_PASS': {'success': ['tests/test_util_typing.py::test_restify', 'tests/test_util_typing.py::test_restify_type_hints_containers', 'tests/test_util_typing.py::test_restify_type_hints_Callable', 'tests/test_util_typing.py::test_restify_type_hints_Union', 'tests/test_util_typing.py::test_restify_type_hints_typevars', 'tests/test_util_typing.py::test_restify_type_hints_custom_class', 'tests/test_util_typing.py::test_restify_type_hints_alias', 'tests/test_util_typing.py::test_restify_type_ForwardRef', 'tests/test_util_typing.py::test_restify_type_Literal', 'tests/test_util_typing.py::test_restify_pep_585', 'tests/test_util_typing.py::test_restify_broken_type_hints', 'tests/test_util_typing.py::test_stringify', 'tests/test_util_typing.py::test_stringify_type_hints_containers', 'tests/test_util_typing.py::test_stringify_type_hints_pep_585', 'tests/test_util_typing.py::test_stringify_Annotated', 'tests/test_util_typing.py::test_stringify_type_hints_string', 'tests/test_util_typing.py::test_stringify_type_hints_Callable', 'tests/test_util_typing.py::test_stringify_type_hints_Union', 'tests/test_util_typing.py::test_stringify_type_hints_typevars', 'tests/test_util_typing.py::test_stringify_type_hints_custom_class', 'tests/test_util_typing.py::test_stringify_type_hints_alias', 'tests/test_util_typing.py::test_stringify_type_Literal', 'tests/test_util_typing.py::test_stringify_broken_type_hints', 'tests/test_util_typing.py::test_stringify_mock'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for sphinx-doc__sphinx-9658: resolved: False
-2025-12-12 14:39:03,389 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
-2025-12-12 14:39:18,503 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
-2025-12-12 14:39:18,514 - INFO - Container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run removed.
+2025-12-12 15:01:25,458 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
+2025-12-12 15:01:40,574 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
+2025-12-12 15:01:40,587 - INFO - Container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run removed.

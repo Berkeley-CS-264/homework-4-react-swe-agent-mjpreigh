@@ -135,6 +135,7 @@ On branch master
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/geometry/entity.py
 	modified:   sympy/geometry/point.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
@@ -145,25 +146,84 @@ Date:   Wed Sep 10 16:33:31 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff f5e965947af2410ded92cfad987aaf45262ea434
+diff --git a/sympy/geometry/entity.py b/sympy/geometry/entity.py
+index ee5c910268..2d19ae9cad 100644
+--- a/sympy/geometry/entity.py
++++ b/sympy/geometry/entity.py
+@@ -138,8 +138,37 @@ def __repr__(self):
+         return type(self).__name__ + repr(self.args)
+ 
+     def __rmul__(self, a):
+-        """Implementation of reverse multiplication method."""
+-        return a.__mul__(self)
++        """Implementation of reverse multiplication method.
++
++        Try the left operand's __mul__ first. However, for some SymPy numeric
++        types (e.g. Float, Integer) __mul__ will produce a Mul expression
++        containing the GeometryEntity instead of returning NotImplemented.
++        In that case we should use the GeometryEntity's own __mul__ so that
++        number * Point behaves the same as Point * number (coordinate-wise
++        multiplication).
++        """
++        try:
++            res = a.__mul__(self)
++        except Exception:
++            # If the left operand's __mul__ raised, fall back to entity's __mul__.
++            return self.__mul__(a)
++
++        # If left operand doesn't know how to handle it, use entity's __mul__.
++        if res is NotImplemented:
++            return self.__mul__(a)
++
++        # If the left operand returned a Mul that contains this entity,
++        # prefer the entity's __mul__ (e.g., 2.0*Point(...) should act like
++        # Point.__mul__).
++        try:
++            from sympy.core.mul import Mul
++            if isinstance(res, Mul) and res.has(self):
++                return self.__mul__(a)
++        except Exception:
++            # If inspection fails for any reason, fall back to left operand's result.
++            pass
++
++        return res
+ 
+     def __rsub__(self, a):
+         """Implementation of reverse subtraction method."""
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..609a98b31a 100644
+index 7c978c47be..63b419943c 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -278,6 +278,14 @@ def __mul__(self, factor):
-         coords = [simplify(x*factor) for x in self.args]
-         return Point(coords, evaluate=False)
+@@ -216,6 +216,29 @@ def __add__(self, other):
+         try:
+             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+         except TypeError:
++            # If the left operand produced a Mul like (2.0*Point(...)),
++            # Point(other) above will raise TypeError because it expects a
++            # sequence of coordinates or a Point.  Detect the common case
++            # where `other` is a Mul containing a Point factor and handle
++            # it by delegating to the coordinate-wise multiplication path
++            # (which Point.__mul__ already implements).
++            try:
++                from sympy.core.mul import Mul
++            except Exception:
++                Mul = None
++            if (Mul is not None) and isinstance(other, Mul):
++                # Separate the Point factor from the scalar factor(s).
++                pt_factor = None
++                scalar = S.One
++                for a in other.args:
++                    if hasattr(a, 'is_Point') and getattr(a, 'is_Point'):
++                        pt_factor = a
++                    else:
++                        scalar = scalar * a
++                if pt_factor is not None:
++                    # use point * scalar (coordinate-wise multiplication)
++                    return self + (pt_factor * scalar)
++            # fallback: raise as before
+             raise GeometryError("Don't know how to add {} and a Point object".format(other))
  
-+    def __rmul__(self, factor):
-+        """Reflected multiplication: ensure number * Point works.
-+
-+        This returns the same as Point.__mul__ so expressions like
-+        sympify(2.0) * Point(1,1) produce a Point rather than a Mul.
-+        """
-+        return self.__mul__(factor)
-+
-     def __neg__(self):
-         """Negate the point."""
-         coords = [-x for x in self.args]
+         coords = [simplify(a + b) for a, b in zip(s, o)]
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -316,8 +376,8 @@ architecture:       64-bit
 cache:              no
 ground types:       python 
 numpy:              None
-random seed:        51763898
-hash randomization: on (PYTHONHASHSEED=3722003082)
+random seed:        3689102
+hash randomization: on (PYTHONHASHSEED=3601658711)
 
 sympy/geometry/tests/test_point.py[12] 
 test_point ok
@@ -334,7 +394,7 @@ test__normalize_dimension ok
 test_direction_cosine ok                                                    [OK]
 
 
-================== tests finished: 12 passed, in 8.14 seconds ==================
+================== tests finished: 12 passed, in 8.19 seconds ==================
 + : '>>>>> End Test Output'
 + git checkout f5e965947af2410ded92cfad987aaf45262ea434 sympy/geometry/tests/test_point.py
 Updated 1 path from 0389123d3e

@@ -286,7 +286,7 @@ class SWEEnvironment:
     
     def list_uncommitted_python_files(self) -> str:
         """
-        Return list of all uncommitted python files.
+        Return list of all uncommitted python files. Use this to find recently edited documents.
         """
         cmd = 'git status --porcelain | grep \'\.py$\' | awk \'{print $2}\''
         res = self.run_bash_cmd(cmd)
@@ -295,7 +295,7 @@ class SWEEnvironment:
     
     def list_broken_python_files(self) -> str:
         """
-        Return list of all python files containing TODO or FIXME comments
+        Return list of all python files containing TODO or FIXME comments. Use this to find incomplete code that is causing bugs.
         """
         cmd = 'grep -Rn -E \'TODO|FIXME\' --include="*.py" .'
         res = self.run_bash_cmd(cmd)
@@ -303,7 +303,7 @@ class SWEEnvironment:
     
     def functions_per_python_file(self) -> str:
         """
-        List number of functions in each Python file.
+        List number of functions in each Python file. Use to identify hotspots of functionality. Bugs are likely there.
         """
         cmd = 'grep -R -c \'^def \' --include="*.py" .'
         res = self.run_bash_cmd(cmd)
@@ -311,7 +311,7 @@ class SWEEnvironment:
     
     def find_test_files(self) -> str:
         """
-        Lists test files
+        Lists test files. Use this to identify tests to run in order to find buggy code and verify edits.
         """
         cmd = 'find . -type f -name "test_*.py"'
         res = self.run_bash_cmd(cmd)

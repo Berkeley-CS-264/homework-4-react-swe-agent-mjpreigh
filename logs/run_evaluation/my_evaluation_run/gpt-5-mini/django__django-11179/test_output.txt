@@ -157,22 +157,15 @@ Date:   Wed Sep 10 09:53:58 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 19fc6376ce67d01ca37a91ef2f55ef769f50513a
 diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
-index 92fe4affb9..c34ba4f678 100644
+index 92fe4affb9..b798238e88 100644
 --- a/django/db/models/deletion.py
 +++ b/django/db/models/deletion.py
-@@ -275,8 +275,16 @@ class Collector:
-         if len(self.data) == 1 and len(instances) == 1:
-             instance = list(instances)[0]
+@@ -277,6 +277,9 @@ class Collector:
              if self.can_fast_delete(instance):
-+                # send pre_delete signal
-+                if not model._meta.auto_created:
-+                    signals.pre_delete.send(sender=model, instance=instance, using=self.using)
                  with transaction.mark_for_rollback_on_error():
                      count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-+                # send post_delete signal
-+                if not model._meta.auto_created:
-+                    signals.post_delete.send(sender=model, instance=instance, using=self.using)
-+                # Clear the instance primary key to reflect deletion.
++                # Clear the instance PK like in the full delete path so that
++                # instance.delete() results in instance.pk being None.
 +                setattr(instance, model._meta.pk.attname, None)
                  return count, {model._meta.label: count}
  
@@ -362,14 +355,7 @@ test_setdefault_none (delete.tests.OnDeleteTests) ... ok
 test_setnull (delete.tests.OnDeleteTests) ... ok
 test_setnull_from_child (delete.tests.OnDeleteTests) ... ok
 test_setnull_from_parent (delete.tests.OnDeleteTests) ... ok
-test_setvalue (delete.tests.OnDeleteTests) ... ok
-
-----------------------------------------------------------------------
-Ran 42 tests in 0.451s
-
-OK (skipped=1)
-Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
-Testing against Django installed in '/testbed/django'
+test_setvalue (delete.tests.OnDeleteTests) ... Testing against Django installed in '/testbed/django'
 Importing application delete
 Skipping setup of unused database(s): other.
 Operations to perform:
@@ -409,6 +395,13 @@ Running migrations:
   Applying sites.0001_initial... OK
   Applying sites.0002_alter_domain_unique... OK
 System check identified no issues (0 silenced).
+ok
+
+----------------------------------------------------------------------
+Ran 42 tests in 0.477s
+
+OK (skipped=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
 + : '>>>>> End Test Output'
 + git checkout 19fc6376ce67d01ca37a91ef2f55ef769f50513a tests/delete/tests.py
 Updated 1 path from a40bb59e08

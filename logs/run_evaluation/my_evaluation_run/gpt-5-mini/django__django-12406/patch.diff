@@ -1,40 +1,21 @@
-*** Begin Patch
-*** Update File: django/db/models/fields/related.py
-@@
-     def formfield(self, *, using=None, **kwargs):
-         if isinstance(self.remote_field.model, str):
-             raise ValueError("Cannot create form field for %r yet, because "
-                              "its related model %r has not been loaded yet" %
-                              (self.name, self.remote_field.model))
--        return super().formfield(**{
--            'form_class': forms.ModelChoiceField,
--            'queryset': self.remote_field.model._default_manager.using(using),
--            'to_field_name': self.remote_field.field_name,
--            **kwargs,
--        })
-+        # If a RadioSelect (or subclass) widget is being used for a required
-+        # ForeignKey (blank=False), avoid adding an empty_label so that the
-+        # RadioSelect doesn't render a pre-selected blank option.
-+        widget = kwargs.get('widget')
-+        if widget is not None and not self.blank:
-+            is_radio = False
-+            # widget may be a widget instance or a widget class
-+            try:
-+                # widget is a class
-+                is_radio = issubclass(widget, forms.RadioSelect)
-+            except Exception:
-+                # widget is likely an instance
-+                is_radio = isinstance(widget, forms.RadioSelect)
-+            if is_radio:
-+                # Only set empty_label if not explicitly provided by caller.
-+                kwargs.setdefault('empty_label', None)
-+
-+        return super().formfield(**{
-+            'form_class': forms.ModelChoiceField,
-+            'queryset': self.remote_field.model._default_manager.using(using),
-+            'to_field_name': self.remote_field.field_name,
-+            **kwargs,
-+        })
-*** End Patch
-
-No changes detected to generate a patch.
+diff --git a/django/forms/models.py b/django/forms/models.py
+index dafc11f995..5a9de41502 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1147,7 +1147,15 @@ class ModelChoiceIterator:
+ 
+     def __iter__(self):
+         if self.field.empty_label is not None:
+-            yield ("", self.field.empty_label)
++            # Radio widgets have an intrinsic "unfilled" state (no radio selected),
++            # so rendering an explicit empty choice (e.g. "---------") is
++            # confusing when the field is required (model.blank is False).
++            # Avoid adding the empty choice for radio widgets when the field
++            # is required. For other widgets (e.g. <select>), keep the empty
++            # choice behavior for compatibility.
++            widget_input_type = getattr(self.field.widget, 'input_type', None)
++            if not (widget_input_type == 'radio' and self.field.required):
++                yield ("", self.field.empty_label)
+         queryset = self.queryset
+         # Can't use iterator() when queryset uses prefetch_related()
+         if not queryset._prefetch_related_lookups:
