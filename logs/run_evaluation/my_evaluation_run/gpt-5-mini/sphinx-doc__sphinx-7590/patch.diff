@@ -1,33 +1,55 @@
 *** Begin Patch
 *** Update File: sphinx/domains/cpp.py
 @@
- class ASTLiteral(ASTExpression):
-     pass
-+
-+
+ class ASTStringLiteral(ASTLiteral):
+     def __init__(self, data: str) -> None:
+         self.data = data
+@@
+ 
+     def describe_signature(self, signode: TextElement, mode: str,
+                            env: "BuildEnvironment", symbol: "Symbol") -> None:
+         txt = str(self)
+         signode.append(nodes.Text(txt, txt))
+ 
+ 
+ class ASTCharLiteral(ASTLiteral):
+@@
+     def describe_signature(self, signode: TextElement, mode: str,
+                            env: "BuildEnvironment", symbol: "Symbol") -> None:
+         txt = str(self)
+         signode.append(nodes.Text(txt, txt))
+ 
+ 
 +class ASTUserDefinedLiteral(ASTLiteral):
++    """A user-defined-literal: a literal followed immediately by an identifier suffix."""
 +    def __init__(self, literal: ASTLiteral, identifier: ASTIdentifier) -> None:
 +        self.literal = literal
 +        self.identifier = identifier
 +
 +    def _stringify(self, transform: StringifyTransform) -> str:
-+        # No space between literal and suffix
 +        return transform(self.literal) + transform(self.identifier)
 +
 +    def get_id(self, version: int) -> str:
-+        # Create a combined id. Use a 'li' like operator-literal as separator.
-+        # This is a pragmatic approach so ids are stable-ish and unique.
-+        return self.literal.get_id(version) + 'li' + self.identifier.get_id(version)
++        # Compose ids of underlying literal and identifier.
++        # For older versions where literal id may not be available, fall back to str().
++        try:
++            lit_id = self.literal.get_id(version)
++        except Exception:
++            lit_id = str(self.literal)
++        try:
++            ident_id = self.identifier.get_id(version)
++        except Exception:
++            ident_id = str(self.identifier)
++        return lit_id + ident_id
 +
 +    def describe_signature(self, signode: TextElement, mode: str,
 +                           env: "BuildEnvironment", symbol: "Symbol") -> None:
 +        verify_description_mode(mode)
-+        # display literal followed immediately by suffix
++        # Render literal and suffix together
 +        self.literal.describe_signature(signode, mode, env, symbol)
-+        # Identifier should appear without space
-+        # For identifiers we want the plain text representation
-+        signode += nodes.Text(str(self.identifier))
-*** End Patch
++        # suffix is just appended as text (no whitespace)
++        signode.append(nodes.Text(str(self.identifier)))
++
 *** End Patch
 
 No changes detected to generate a patch.

@@ -135,7 +135,7 @@ On branch main
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   django/core/servers/basehttp.py
+	modified:   django/test/testcases.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -145,39 +145,34 @@ Date:   Wed Sep 10 11:39:47 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff e4430f22c8e3d29ce5d9d0263fba57121938d06d
-diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
-index 14dab517c9..d71c4ee63e 100644
---- a/django/core/servers/basehttp.py
-+++ b/django/core/servers/basehttp.py
-@@ -81,6 +81,28 @@ class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
-     """A threaded version of the WSGIServer"""
-     daemon_threads = True
+diff --git a/django/test/testcases.py b/django/test/testcases.py
+index 92f566b7b0..a483f18e61 100644
+--- a/django/test/testcases.py
++++ b/django/test/testcases.py
+@@ -1514,11 +1514,22 @@ class LiveServerThread(threading.Thread):
+             connections.close_all()
  
-+    def process_request_thread(self, request, client_address):
-+        """Ensure database connections are closed when a request thread
-+        finishes.
-+
-+        ThreadingMixIn.process_request_thread runs the request handler in a
-+        separate thread; when that thread finishes it's important to close any
-+        database connections that were used by that thread so they don't remain
-+        open and block test database teardown.
-+        """
-+        try:
-+            return super().process_request_thread(request, client_address)
-+        finally:
-+            # Close all DB connections associated with this thread. Import here to
-+            # avoid importing django.db at module import time.
-+            try:
-+                from django.db import connections
-+                connections.close_all()
-+            except Exception:
-+                # Being defensive: don't let DB errors interfere with request handling.
-+                pass
-+
-+
+     def _create_server(self):
+-        return self.server_class(
++        # Create the server instance. Ensure daemon_threads is False so that
++        # shutdown() waits for request handler threads to finish. This makes
++        # sure per-thread resources (like database connections) are closed
++        # before the live server thread exits, avoiding races on teardown
++        # (see #22414 regression where test DB couldn't be destroyed).
++        httpd = self.server_class(
+             (self.host, self.port),
+             QuietWSGIRequestHandler,
+             allow_reuse_address=False,
+         )
++        # ThreadingMixIn.daemon_threads determines whether the server waits
++        # for request threads to terminate on shutdown. Set it to False so
++        # shutdown() blocks until threads have finished and closed DB
++        # connections.
++        httpd.daemon_threads = False
++        return httpd
  
- class ServerHandler(simple_server.ServerHandler):
-     http_version = '1.1'
+     def terminate(self):
+         if hasattr(self, 'httpd'):
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -319,8 +314,8 @@ Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/test
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-4.0.dev20250910113947-0.editable-py3-none-any.whl size=26054 sha256=bfb0e1edea70e751c476356c50f68584c6e13ca52c6caaefb901b954632d4ab9
-  Stored in directory: /tmp/pip-ephem-wheel-cache-grt9kce9/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+  Created wheel for Django: filename=django-4.0.dev20250910113947-0.editable-py3-none-any.whl size=26054 sha256=4a753aeb38f2f1d1749230a46d7b41aff77cafe2bb305902f69efe886404d61f
+  Stored in directory: /tmp/pip-ephem-wheel-cache-23zth4ws/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -330,7 +325,7 @@ Installing collected packages: Django
 Successfully installed Django-4.0.dev20250910113947
 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
 + git checkout e4430f22c8e3d29ce5d9d0263fba57121938d06d django/test/testcases.py tests/servers/tests.py
-Updated 0 paths from 0880e74cbb
+Updated 1 path from 0880e74cbb
 + git apply -v -
 Checking patch django/test/testcases.py...
 Checking patch tests/servers/tests.py...
@@ -462,7 +457,7 @@ Traceback (most recent call last):
 TypeError: __init__() got an unexpected keyword argument 'connections_override'
 
 ----------------------------------------------------------------------
-Ran 2 tests in 0.572s
+Ran 2 tests in 0.565s
 
 FAILED (errors=6)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...

@@ -191,17 +191,44 @@ class SWEEnvironment:
 
         results = []
 
-        cmd = f'grep -Rn "{content}" || true'
-        files = self.run_bash_cmd(cmd)
-        print("files: " + files)
+        cmd = f'grep -Rl "{content}"'
+        return self.run_bash_cmd(cmd)
+        files = self.run_bash_cmd(cmd).strip().split('\n')
+
+        if files[0] == '':
+            files = []
         for file in files:
-            results.append("-----FILE: {file}-----")
-            lines = self.run_bash_cmd(f'grep "{content}" {file}')
-            print("lines: " + lines)
+            if file[0] == "." or file == '':
+                continue
+            results.append(f'-----FILE: {file}-----')
+
+            cmd = f'grep -n "{content}" {file} | awk -F: \'{{print $1}}\''
+
+            lines = self.run_bash_cmd(f'grep -n "{content}" {file} | awk -F: \'{{print $1}}\'')
+
+            lines = lines.strip().split('\n')
+            print("here 1")
+            print("lines: " + str(lines))
             for line in lines:
-                line_text = self.run_bash_cmd(f'sed -n \'{int(line)}p;q\' {file}')
-                print("line text: " + line_text)
+                print("line: " + line)
+                if not line.isnumeric():
+                    continue
+                if int(line) > 2:
+                    minus = int(line) - 2
+                    line_text = self.run_bash_cmd(f'sed -n \'{int(minus)}p\' {file}')
+                    results.append(f'{minus}: {line_text}')
+                if int(line) > 1:
+                    minus = int(line) - 1
+                    line_text = self.run_bash_cmd(f'sed -n \'{int(minus)}p\' {file}')
+                    results.append(f'{minus}: {line_text}')
+                line_text = self.run_bash_cmd(f'sed -n \'{int(line)}p\' {file}')
                 results.append(f'{line}: {line_text}')
+                plus = int(line) + 1
+                line_text = self.run_bash_cmd(f'sed -n \'{int(plus)}p\' {file}')
+                results.append(f'{plus}: {line_text}')
+                plus = int(line) + 2
+                line_text = self.run_bash_cmd(f'sed -n \'{int(plus)}p\' {file}')
+                results.append(f'{plus}: {line_text}')
         results = "\n".join(results)
         print("results: " + results)
         return results

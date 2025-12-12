@@ -1,113 +1,79 @@
-2025-12-12 09:28:55,827 - INFO - Creating container for sympy__sympy-17655...
-2025-12-12 09:28:55,847 - INFO - Container for sympy__sympy-17655 created: ac26c98d130a5d674a200fe6cff07dea05c39d023e32de17c5ab50cf3ecd5d1c
-2025-12-12 09:28:55,911 - INFO - Container for sympy__sympy-17655 started: ac26c98d130a5d674a200fe6cff07dea05c39d023e32de17c5ab50cf3ecd5d1c
-2025-12-12 09:28:55,911 - INFO - Intermediate patch for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/patch.diff, now applying to container...
-2025-12-12 09:28:56,025 - INFO - >>>>> Applied Patch:
+2025-12-12 11:34:15,121 - INFO - Creating container for sympy__sympy-17655...
+2025-12-12 11:34:15,151 - INFO - Container for sympy__sympy-17655 created: cba4a6b578598943258d7487ebc66d6c80d64068a5154df4f7a46bb33566bcf3
+2025-12-12 11:34:15,218 - INFO - Container for sympy__sympy-17655 started: cba4a6b578598943258d7487ebc66d6c80d64068a5154df4f7a46bb33566bcf3
+2025-12-12 11:34:15,218 - INFO - Intermediate patch for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/patch.diff, now applying to container...
+2025-12-12 11:34:15,323 - INFO - >>>>> Applied Patch:
 Checking patch sympy/geometry/point.py...
 Applied patch sympy/geometry/point.py cleanly.
 
-2025-12-12 09:28:56,264 - INFO - Git diff before:
+2025-12-12 11:34:15,567 - INFO - Git diff before:
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..9635a80228 100644
+index 7c978c47be..68d0cf9ba8 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -32,6 +32,7 @@
- from sympy.core.numbers import Float
- from sympy.core.evaluate import global_evaluate
- from sympy.core.add import Add
-+from sympy.core.mul import Mul
- from sympy.utilities.iterables import uniq
- from sympy.utilities.misc import filldedent, func_name, Undecidable
- 
-@@ -183,7 +184,7 @@ def __abs__(self):
-         return Point.distance(origin, self)
- 
-     def __add__(self, other):
--        """Add other to self by incrementing self's coordinates by
-+        \"\"\"Add other to self by incrementing self's coordinates by
-         those of other.
- 
-         Notes
-@@ -212,11 +213,23 @@ def __add__(self, other):
- 
-         sympy.geometry.point.Point.translate
- 
--        """
-+        \"\"\"
+@@ -216,7 +216,24 @@ def __add__(self, other):
          try:
-+            # Handle cases where a Mul was produced (e.g., number * Point)
-+            # by converting a Mul containing exactly one Point into a scaled Point.
-+            if isinstance(other, Mul):
-+                # find Point factors inside the Mul
-+                point_args = [a for a in other.args if isinstance(a, Point)]
-+                if len(point_args) == 1:
-+                    pt = point_args[0]
-+                    scalar_args = [a for a in other.args if a is not pt]
-+                    scalar = Mul(*scalar_args) if scalar_args else S.One
-+                    # create a scaled point (uses Point.__mul__)
-+                    other = pt * scalar
-+
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
 -            raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            raise GeometryError(\"Don't know how to add {} and a Point object\".format(other))
++            # Allow adding a scalar*Point, e.g. Point + 2*Point (which produces a Mul)
++            # Try to detect a Mul with exactly one Point factor and convert it
++            # to a Point by multiplying the Point by the scalar factors.
++            if isinstance(other, Expr) and getattr(other, 'is_Mul', False):
++                pts = [a for a in other.args if isinstance(a, Point)]
++                if len(pts) == 1:
++                    pt = pts[0]
++                    scalar = sympify(1)
++                    for a in other.args:
++                        if a is pt:
++                            continue
++                        scalar *= a
++                    o_point = pt * scalar
++                    s, o = Point._normalize_dimension(self, Point(o_point, evaluate=False))
++                else:
++                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            else:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
  
          coords = [simplify(a + b) for a, b in zip(s, o)]
          return Point(coords, evaluate=False)
-2025-12-12 09:28:56,265 - INFO - Eval script for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/eval.sh; copying to container...
-2025-12-12 09:28:59,118 - INFO - Test runtime: 2.80 seconds
-2025-12-12 09:28:59,120 - INFO - Test output for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/test_output.txt
-2025-12-12 09:28:59,199 - INFO - Git diff after:
+2025-12-12 11:34:15,568 - INFO - Eval script for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/eval.sh; copying to container...
+2025-12-12 11:34:26,709 - INFO - Test runtime: 11.08 seconds
+2025-12-12 11:34:26,709 - INFO - Test output for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/test_output.txt
+2025-12-12 11:34:26,797 - INFO - Git diff after:
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..9635a80228 100644
+index 7c978c47be..68d0cf9ba8 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -32,6 +32,7 @@
- from sympy.core.numbers import Float
- from sympy.core.evaluate import global_evaluate
- from sympy.core.add import Add
-+from sympy.core.mul import Mul
- from sympy.utilities.iterables import uniq
- from sympy.utilities.misc import filldedent, func_name, Undecidable
- 
-@@ -183,7 +184,7 @@ def __abs__(self):
-         return Point.distance(origin, self)
- 
-     def __add__(self, other):
--        """Add other to self by incrementing self's coordinates by
-+        \"\"\"Add other to self by incrementing self's coordinates by
-         those of other.
- 
-         Notes
-@@ -212,11 +213,23 @@ def __add__(self, other):
- 
-         sympy.geometry.point.Point.translate
- 
--        """
-+        \"\"\"
+@@ -216,7 +216,24 @@ def __add__(self, other):
          try:
-+            # Handle cases where a Mul was produced (e.g., number * Point)
-+            # by converting a Mul containing exactly one Point into a scaled Point.
-+            if isinstance(other, Mul):
-+                # find Point factors inside the Mul
-+                point_args = [a for a in other.args if isinstance(a, Point)]
-+                if len(point_args) == 1:
-+                    pt = point_args[0]
-+                    scalar_args = [a for a in other.args if a is not pt]
-+                    scalar = Mul(*scalar_args) if scalar_args else S.One
-+                    # create a scaled point (uses Point.__mul__)
-+                    other = pt * scalar
-+
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
 -            raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            raise GeometryError(\"Don't know how to add {} and a Point object\".format(other))
++            # Allow adding a scalar*Point, e.g. Point + 2*Point (which produces a Mul)
++            # Try to detect a Mul with exactly one Point factor and convert it
++            # to a Point by multiplying the Point by the scalar factors.
++            if isinstance(other, Expr) and getattr(other, 'is_Mul', False):
++                pts = [a for a in other.args if isinstance(a, Point)]
++                if len(pts) == 1:
++                    pt = pts[0]
++                    scalar = sympify(1)
++                    for a in other.args:
++                        if a is pt:
++                            continue
++                        scalar *= a
++                    o_point = pt * scalar
++                    s, o = Point._normalize_dimension(self, Point(o_point, evaluate=False))
++                else:
++                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            else:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
  
          coords = [simplify(a + b) for a, b in zip(s, o)]
          return Point(coords, evaluate=False)
-2025-12-12 09:28:59,200 - INFO - Grading answer for sympy__sympy-17655...
-2025-12-12 09:28:59,202 - INFO - report: {'sympy__sympy-17655': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_point', 'test_point3D']}, 'PASS_TO_PASS': {'success': [], 'failure': ['test_Point2D', 'test_issue_9214', 'test_issue_11617', 'test_transform', 'test_concyclic_doctest_bug', 'test_arguments', 'test_unit', 'test_dot', 'test__normalize_dimension']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+2025-12-12 11:34:26,797 - INFO - Grading answer for sympy__sympy-17655...
+2025-12-12 11:34:26,798 - INFO - report: {'sympy__sympy-17655': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_point', 'test_point3D']}, 'PASS_TO_PASS': {'success': ['test_Point2D', 'test_issue_9214', 'test_issue_11617', 'test_transform', 'test_concyclic_doctest_bug', 'test_arguments', 'test_unit', 'test_dot', 'test__normalize_dimension'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for sympy__sympy-17655: resolved: False
-2025-12-12 09:28:59,203 - INFO - Attempting to stop container sweb.eval.sympy__sympy-17655.my_evaluation_run...
-2025-12-12 09:29:14,318 - INFO - Attempting to remove container sweb.eval.sympy__sympy-17655.my_evaluation_run...
-2025-12-12 09:29:14,330 - INFO - Container sweb.eval.sympy__sympy-17655.my_evaluation_run removed.
+2025-12-12 11:34:26,801 - INFO - Attempting to stop container sweb.eval.sympy__sympy-17655.my_evaluation_run...
+2025-12-12 11:34:41,926 - INFO - Attempting to remove container sweb.eval.sympy__sympy-17655.my_evaluation_run...
+2025-12-12 11:34:41,939 - INFO - Container sweb.eval.sympy__sympy-17655.my_evaluation_run removed.

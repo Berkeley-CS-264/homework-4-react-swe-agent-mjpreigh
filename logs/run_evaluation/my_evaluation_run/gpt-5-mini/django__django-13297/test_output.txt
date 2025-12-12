@@ -157,37 +157,24 @@ Date:   Wed Sep 10 11:04:59 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 8954f255bbf5f4ee997fd6de62cb50fc9b5dd697
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..80b25401f4 100644
+index ea5baca08d..0d44c9ec79 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -27,6 +27,29 @@ class ContextMixin:
-         kwargs.setdefault('view', self)
-         if self.extra_context is not None:
-             kwargs.update(self.extra_context)
-+        # Unwrap any SimpleLazyObject values passed via URL kwargs.
-+        # Historically URL kwargs were plain values; as of the deprecation
-+        # wrapper they are provided as SimpleLazyObject instances that emit a
-+        # RemovedInDjango40Warning when accessed. Leaving those proxy objects
-+        # in the context can cause problems when user code expects real values
-+        # (for example, filtering ORM querysets using a slug value). To avoid
-+        # passing proxy objects to callers of get_context_data(), force
-+        # evaluation of SimpleLazyObject instances here.
-+        try:
-+            from django.utils.functional import SimpleLazyObject, empty
-+        except Exception:
-+            SimpleLazyObject = None
-+            empty = None
-+
-+        if SimpleLazyObject is not None:
-+            for key, value in list(kwargs.items()):
-+                if isinstance(value, SimpleLazyObject):
-+                    # Ensure the wrapped object is initialized and store the
-+                    # actual value in the context dictionary.
-+                    if getattr(value, '_wrapped', empty) is empty:
-+                        # Initialize the wrapped object.
-+                        value._setup()
-+                    kwargs[key] = value._wrapped
-         return kwargs
+@@ -159,8 +159,14 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
+     def get(self, request, *args, **kwargs):
+         # RemovedInDjango40Warning: when the deprecation ends, replace with:
+         #   context = self.get_context_data()
+-        context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
+-        context = self.get_context_data(**context_kwargs)
++        # Pass the raw URL kwargs to get_context_data so view code receives real
++        # values (not SimpleLazyObject), then add lazily-wrapped kwargs into
++        # the context for templates to trigger the deprecation warning when
++        # accessed from templates.
++        context = self.get_context_data(**kwargs)
++        wrapped = _wrap_url_kwargs_with_deprecation_warning(kwargs)
++        for key, value in wrapped.items():
++            context.setdefault(key, value)
+         return self.render_to_response(context)
  
  
 + source /opt/miniconda3/bin/activate
@@ -340,8 +327,8 @@ test_extra_template_params (generic_views.test_base.DeprecationTests)
 A template view can be customized to return extra context. ... ok
 test_template_params (generic_views.test_base.DeprecationTests)
 A generic template view passes kwargs as context. ... ok
-test_template_params_filtering (generic_views.test_base.DeprecationTests) ... ERROR
-test_template_params_warning (generic_views.test_base.DeprecationTests) ... ERROR
+test_template_params_filtering (generic_views.test_base.DeprecationTests) ... ok
+test_template_params_warning (generic_views.test_base.DeprecationTests) ... FAIL
 test_get_context_data_super (generic_views.test_base.GetContextDataTest) ... ok
 test_object_at_custom_name_in_context_data (generic_views.test_base.GetContextDataTest) ... ok
 test_object_in_get_context_data (generic_views.test_base.GetContextDataTest) ... ok
@@ -378,7 +365,7 @@ regression for #16705 ... ok
 test_temporary_redirect (generic_views.test_base.RedirectViewTest)
 Temporary redirects are an option ... ok
 test_template_mixin_without_template (generic_views.test_base.SingleObjectTemplateResponseMixinTest) ... ok
-test_cached_views (generic_views.test_base.TemplateViewTest) ... ERROR
+test_cached_views (generic_views.test_base.TemplateViewTest) ... ok
 test_content_type (generic_views.test_base.TemplateViewTest) ... ok
 test_extra_context (generic_views.test_base.TemplateViewTest) ... ok
 test_get (generic_views.test_base.TemplateViewTest) ... ok
@@ -414,132 +401,21 @@ test_setup_adds_args_kwargs_request (generic_views.test_base.ViewTest) ... ok
 test_setup_get_and_head (generic_views.test_base.ViewTest) ... ok
 
 ======================================================================
-ERROR: test_template_params_filtering (generic_views.test_base.DeprecationTests)
+FAIL: test_template_params_warning (generic_views.test_base.DeprecationTests)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/testbed/django/db/backends/utils.py", line 84, in _execute
-    return self.cursor.execute(sql, params)
-  File "/testbed/django/db/backends/sqlite3/base.py", line 412, in execute
-    return Database.Cursor.execute(self, query, params)
-sqlite3.InterfaceError: Error binding parameter 0 - probably unsupported type.
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/testbed/django/test/utils.py", line 381, in inner
-    return func(*args, **kwargs)
-  File "/testbed/tests/generic_views/test_base.py", line 622, in test_template_params_filtering
-    response = ArtistView.as_view()(self.rf.get('/'), artist_name=artist.name)
-  File "/testbed/django/views/generic/base.py", line 96, in view
-    return self.dispatch(request, *args, **kwargs)
-  File "/testbed/django/views/generic/base.py", line 124, in dispatch
-    return handler(request, *args, **kwargs)
-  File "/testbed/django/views/generic/base.py", line 186, in get
-    context = self.get_context_data(**context_kwargs)
-  File "/testbed/tests/generic_views/test_base.py", line 618, in get_context_data
-    artist = Artist.objects.get(name=artist_name)
-  File "/testbed/django/db/models/manager.py", line 85, in manager_method
-    return getattr(self.get_queryset(), name)(*args, **kwargs)
-  File "/testbed/django/db/models/query.py", line 425, in get
-    num = len(clone)
-  File "/testbed/django/db/models/query.py", line 269, in __len__
-    self._fetch_all()
-  File "/testbed/django/db/models/query.py", line 1316, in _fetch_all
-    self._result_cache = list(self._iterable_class(self))
-  File "/testbed/django/db/models/query.py", line 53, in __iter__
-    results = compiler.execute_sql(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size)
-  File "/testbed/django/db/models/sql/compiler.py", line 1163, in execute_sql
-    cursor.execute(sql, params)
-  File "/testbed/django/db/backends/utils.py", line 66, in execute
-    return self._execute_with_wrappers(sql, params, many=False, executor=self._execute)
-  File "/testbed/django/db/backends/utils.py", line 75, in _execute_with_wrappers
-    return executor(sql, params, many, context)
-  File "/testbed/django/db/backends/utils.py", line 84, in _execute
-    return self.cursor.execute(sql, params)
-  File "/testbed/django/db/utils.py", line 90, in __exit__
-    raise dj_exc_value.with_traceback(traceback) from exc_value
-  File "/testbed/django/db/backends/utils.py", line 84, in _execute
-    return self.cursor.execute(sql, params)
-  File "/testbed/django/db/backends/sqlite3/base.py", line 412, in execute
-    return Database.Cursor.execute(self, query, params)
-django.db.utils.InterfaceError: Error binding parameter 0 - probably unsupported type.
-
-======================================================================
-ERROR: test_template_params_warning (generic_views.test_base.DeprecationTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/generic_views/test_base.py", line 598, in test_template_params_warning
-    response = self.client.get('/template/custom/bar1/bar2/')
-  File "/testbed/django/test/client.py", line 733, in get
-    response = super().get(path, data=data, secure=secure, **extra)
-  File "/testbed/django/test/client.py", line 395, in get
-    **extra,
-  File "/testbed/django/test/client.py", line 470, in generic
-    return self.request(**r)
-  File "/testbed/django/test/client.py", line 710, in request
-    self.check_exception(response)
-  File "/testbed/django/test/client.py", line 571, in check_exception
-    raise exc_value
-  File "/testbed/django/core/handlers/exception.py", line 47, in inner
-    response = get_response(request)
-  File "/testbed/django/core/handlers/base.py", line 179, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "/testbed/django/views/generic/base.py", line 96, in view
-    return self.dispatch(request, *args, **kwargs)
-  File "/testbed/django/views/generic/base.py", line 124, in dispatch
-    return handler(request, *args, **kwargs)
-  File "/testbed/django/views/generic/base.py", line 186, in get
-    context = self.get_context_data(**context_kwargs)
-  File "/testbed/tests/generic_views/views.py", line 15, in get_context_data
-    context = super().get_context_data(**kwargs)
-  File "/testbed/django/views/generic/base.py", line 51, in get_context_data
-    value._setup()
-  File "/testbed/django/utils/functional.py", line 376, in _setup
-    self._wrapped = self._setupfunc()
-  File "/testbed/django/views/generic/base.py", line 201, in access_value
-    RemovedInDjango40Warning, stacklevel=2,
-django.utils.deprecation.RemovedInDjango40Warning: TemplateView passing URL kwargs to the context is deprecated. Reference foo1 in your template through view.kwargs instead.
-
-======================================================================
-ERROR: test_cached_views (generic_views.test_base.TemplateViewTest)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/generic_views/test_base.py", line 359, in test_cached_views
-    response = self.client.get('/template/cached/bar/')
-  File "/testbed/django/test/client.py", line 733, in get
-    response = super().get(path, data=data, secure=secure, **extra)
-  File "/testbed/django/test/client.py", line 395, in get
-    **extra,
-  File "/testbed/django/test/client.py", line 470, in generic
-    return self.request(**r)
-  File "/testbed/django/test/client.py", line 710, in request
-    self.check_exception(response)
-  File "/testbed/django/test/client.py", line 571, in check_exception
-    raise exc_value
-  File "/testbed/django/core/handlers/exception.py", line 47, in inner
-    response = get_response(request)
-  File "/testbed/django/core/handlers/base.py", line 179, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "/testbed/django/utils/decorators.py", line 130, in _wrapped_view
-    response = view_func(request, *args, **kwargs)
-  File "/testbed/django/views/generic/base.py", line 96, in view
-    return self.dispatch(request, *args, **kwargs)
-  File "/testbed/django/views/generic/base.py", line 124, in dispatch
-    return handler(request, *args, **kwargs)
-  File "/testbed/django/views/generic/base.py", line 186, in get
-    context = self.get_context_data(**context_kwargs)
-  File "/testbed/django/views/generic/base.py", line 51, in get_context_data
-    value._setup()
-  File "/testbed/django/utils/functional.py", line 376, in _setup
-    self._wrapped = self._setupfunc()
-  File "/testbed/django/views/generic/base.py", line 201, in access_value
-    RemovedInDjango40Warning, stacklevel=2,
-django.utils.deprecation.RemovedInDjango40Warning: TemplateView passing URL kwargs to the context is deprecated. Reference foo in your template through view.kwargs instead.
+  File "/testbed/tests/generic_views/test_base.py", line 605, in test_template_params_warning
+    str(response.context['foo1'])
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/contextlib.py", line 88, in __exit__
+    next(self.gen)
+  File "/testbed/django/test/testcases.py", line 693, in _assert_raises_or_warns_cm
+    yield cm
+AssertionError: RemovedInDjango40Warning not raised
 
 ----------------------------------------------------------------------
-Ran 59 tests in 0.081s
+Ran 59 tests in 3.139s
 
-FAILED (errors=3)
+FAILED (failures=1)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
 Testing against Django installed in '/testbed/django'
 Importing application generic_views

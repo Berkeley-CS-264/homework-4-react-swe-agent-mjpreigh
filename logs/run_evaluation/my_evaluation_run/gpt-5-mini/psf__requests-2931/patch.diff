@@ -1,50 +1,16 @@
-diff --git a/requests/utils.py b/requests/utils.py
-index 132cd2b..1b04d6d 100644
---- a/requests/utils.py
-+++ b/requests/utils.py
-@@ -688,19 +688,35 @@ def to_native_string(string, encoding='ascii'):
-     Given a string object, regardless of type, returns a representation of that
-     string in the native string type, encoding and decoding where necessary.
-     This assumes ASCII unless told otherwise.
--    """
--    out = None
+diff --git a/requests/models.py b/requests/models.py
+index 9c624d3..b8c5d9e 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -80,8 +80,10 @@ class RequestEncodingMixin(object):
+         if parameters are supplied as a dict.
+         """
  
-+    Notes:
-+    - If `string` is already a native str (builtin_str), return it unchanged.
-+    - If `string` is bytes on Python 3, attempt to decode using the provided
-+      encoding. If decoding fails (i.e. the bytes are arbitrary/binary data),
-+      return the original bytes unchanged rather than raising. This preserves
-+      binary payloads (e.g. file uploads or explicitly-encoded data) when
-+      callers pass raw bytes.
-+    - On Python 2, attempt to encode unicode to bytes using the provided
-+      encoding. If that fails, return the original value.
-+    """
-     if isinstance(string, builtin_str):
--        out = string
--    else:
--        if is_py2:
--            out = string.encode(encoding)
--        else:
--            out = string.decode(encoding)
--
--    return out
-+        return string
- 
-+    # Attempt to convert/encode/decode, but be tolerant of binary data.
-+    if is_py2:
-+        try:
-+            return string.encode(encoding)
-+        except (UnicodeEncodeError, AttributeError):
-+            # If encoding fails or the object doesn't support .encode,
-+            # return it unchanged.
-+            return string
-+    else:
-+        try:
-+            return string.decode(encoding)
-+        except (UnicodeDecodeError, AttributeError):
-+            # If decoding fails (non-text bytes) or the object isn't bytes,
-+            # return it unchanged so binary payloads are preserved.
-+            return string
- 
- def urldefragauth(url):
-     """
+-        if isinstance(data, (str, bytes)):
++        if isinstance(data, str):
+             return to_native_string(data)
++        if isinstance(data, bytes):
++            return data
+         elif hasattr(data, 'read'):
+             return data
+         elif hasattr(data, '__iter__'):

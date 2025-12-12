@@ -1,29 +1,40 @@
-diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py
-index f269d9e17f..479c7695c6 100644
---- a/django/db/models/fields/related.py
-+++ b/django/db/models/fields/related.py
-@@ -415,6 +415,24 @@ class RelatedField(FieldCacheMixin, Field):
-             defaults.update({
-                 'limit_choices_to': limit_choices_to,
-             })
-+
-+        # If the model field is not blank and the widget is a RadioSelect,
-+        # avoid providing an empty_label to the ModelChoiceField. RadioSelect
-+        # has an inherent unfilled state and showing a "---------" choice
-+        # makes that blank option look like a valid choice for required fields.
-+        # Respect an explicit empty_label in kwargs if provided.
-+        widget = kwargs.get('widget')
-+        if widget is None and 'widget' in defaults:
-+            widget = defaults['widget']
-+
-+        if ('empty_label' not in kwargs) and (not self.blank):
+*** Begin Patch
+*** Update File: django/db/models/fields/related.py
+@@
+     def formfield(self, *, using=None, **kwargs):
+         if isinstance(self.remote_field.model, str):
+             raise ValueError("Cannot create form field for %r yet, because "
+                              "its related model %r has not been loaded yet" %
+                              (self.name, self.remote_field.model))
+-        return super().formfield(**{
+-            'form_class': forms.ModelChoiceField,
+-            'queryset': self.remote_field.model._default_manager.using(using),
+-            'to_field_name': self.remote_field.field_name,
+-            **kwargs,
+-        })
++        # If the model field does not allow blanks and the widget is a
++        # RadioSelect (either the class or an instance), do not include an
++        # empty_label by default. Radio widgets have an inherent unfilled
++        # state and an explicit blank choice looks like a selectable option.
++        # Do not override an explicit empty_label provided by the caller.
++        widget = kwargs.get('widget', None)
++        if 'empty_label' not in kwargs and not self.blank and widget is not None:
++            is_radio = False
 +            try:
-+                from django.forms import RadioSelect
-+            except Exception:
-+                RadioSelect = None
-+            if RadioSelect is not None and isinstance(widget, RadioSelect):
-+                defaults['empty_label'] = None
++                # widget may be a class (subclass of Widget)
++                is_radio = issubclass(widget, forms.RadioSelect)
++            except TypeError:
++                # widget may be an instance
++                is_radio = isinstance(widget, forms.RadioSelect)
++            if is_radio:
++                kwargs['empty_label'] = None
 +
-         defaults.update(kwargs)
-         return super().formfield(**defaults)
- 
++        return super().formfield(**{
++            'form_class': forms.ModelChoiceField,
++            'queryset': self.remote_field.model._default_manager.using(using),
++            'to_field_name': self.remote_field.field_name,
++            **kwargs,
++        })
+*** End Patch
+
+No changes detected to generate a patch.

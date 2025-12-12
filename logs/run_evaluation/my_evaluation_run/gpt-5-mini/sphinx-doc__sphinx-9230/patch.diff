@@ -1,27 +1,57 @@
 diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
-index d8cb75a5f..fff615925 100644
+index d8cb75a5f..1e5dd606b 100644
 --- a/sphinx/ext/napoleon/docstring.py
 +++ b/sphinx/ext/napoleon/docstring.py
-@@ -266,8 +266,22 @@ class GoogleDocstring:
-         if parse_type:
-             match = _google_typed_arg_regex.match(before)
-             if match:
-+                # Standard Google style: "name(type)"
-                 _name = match.group(1).strip()
-                 _type = match.group(2)
-+            else:
-+                # Also accept the alternative "type name" form commonly used
-+                # in Sphinx/reST param fields, e.g.:
-+                #   ":param dict(str, str) opc_meta: (optional)"
-+                # In that case, parse out the type (which may contain commas
-+                # and parentheses) and the trailing name.
-+                # We look for a closing parenthesis followed by whitespace and
-+                # then the name. This is a pragmatic heuristic to handle
-+                # complex type specs that appear before the parameter name.
-+                alt_match = re.match(r'(.+\))\s+(.+)$', before)
-+                if alt_match:
-+                    _type = alt_match.group(1).strip()
-+                    _name = alt_match.group(2).strip()
+@@ -919,9 +919,52 @@ def _recombine_set_tokens(tokens: List[str]) -> List[str]:
+             except IndexError:
+                 break
  
-         _name = self._escape_args_and_kwargs(_name)
++            # handle sets {...} and parenthesized groups (...), so that
++            # commas inside them are not treated as top-level separators.
+             if token == "{":
+                 tokens.appendleft("{")
+                 yield "".join(takewhile_set(tokens))
++            elif token == "(":
++                # similar logic to takewhile_set but for parentheses
++                def takewhile_paren(tokens):
++                    open_paren = 0
++                    previous_token = None
++                    while True:
++                        try:
++                            t = tokens.popleft()
++                        except IndexError:
++                            break
++
++                        if t == ", ":
++                            previous_token = t
++                            continue
++
++                        if not t.strip():
++                            continue
++
++                        if t in keywords:
++                            tokens.appendleft(t)
++                            if previous_token is not None:
++                                tokens.appendleft(previous_token)
++                            break
++
++                        if previous_token is not None:
++                            yield previous_token
++                            previous_token = None
++
++                        if t == "(":
++                            open_paren += 1
++                        elif t == ")":
++                            open_paren -= 1
++
++                        yield t
++
++                        if open_paren == 0:
++                            break
++
++                # push back the '(' we just consumed and recombine the paren group
++                tokens.appendleft("(")
++                yield "".join(takewhile_paren(tokens))
+             else:
+                 yield token
  

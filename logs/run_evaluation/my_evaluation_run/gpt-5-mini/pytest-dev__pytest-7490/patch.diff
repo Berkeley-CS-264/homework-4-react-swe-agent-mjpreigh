@@ -1,17 +1,33 @@
 diff --git a/src/_pytest/skipping.py b/src/_pytest/skipping.py
-index 335e10996..065049607 100644
+index 335e10996..bd95cb478 100644
 --- a/src/_pytest/skipping.py
 +++ b/src/_pytest/skipping.py
-@@ -262,6 +262,12 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
-     outcome = yield
-     rep = outcome.get_result()
-     xfailed = item._store.get(xfailed_key, None)
-+    # Re-evaluate xfail marks for the call phase to pick up markers that
-+    # may have been added during test execution (e.g. request.node.add_marker).
-+    # This ensures dynamically applied xfail markers are respected in reporting.
-+    if not item.config.option.runxfail and rep.when == "call":
+@@ -239,9 +239,27 @@ def pytest_runtest_setup(item: Item) -> None:
+         skip(skipped.reason)
+ 
+     if not item.config.option.runxfail:
+-        item._store[xfailed_key] = xfailed = evaluate_xfail_marks(item)
++        # Evaluate xfail marks here only to determine if the test should be
++        # prevented from running (run=False). For run=True xfails we avoid
++        # caching the evaluation in setup so that markers added dynamically
++        # during the test execution (e.g. via request.node.add_marker) are
++        # picked up later in the call/report phase (see pytest_runtest_call).
 +        xfailed = evaluate_xfail_marks(item)
-+        item._store[xfailed_key] = xfailed
-     # unittest special case, see setting of unexpectedsuccess_key
-     if unexpectedsuccess_key in item._store and rep.when == "call":
-         reason = item._store[unexpectedsuccess_key]
+         if xfailed and not xfailed.run:
++            # Store the xfail evaluation and skip the test execution.
++            item._store[xfailed_key] = xfailed
+             xfail("[NOTRUN] " + xfailed.reason)
++        else:
++            # Do not cache run=True xfail evaluations here: leave the store
++            # without an entry so pytest_runtest_call can evaluate marks
++            # again and pick up any markers added during test execution.
++            try:
++                # Ensure the key is absent; Store-like objects support pop.
++                item._store.pop(xfailed_key, None)  # type: ignore[attr-defined]
++            except Exception:
++                # In case the store doesn't support pop, delete if present.
++                if xfailed_key in item._store:
++                    del item._store[xfailed_key]
+ 
+ 
+ @hookimpl(hookwrapper=True)

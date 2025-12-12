@@ -1,13 +1,12 @@
 diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
-index 92fe4affb9..6111bd9389 100644
+index 92fe4affb9..8743b78b07 100644
 --- a/django/db/models/deletion.py
 +++ b/django/db/models/deletion.py
-@@ -277,6 +277,9 @@ class Collector:
+@@ -277,6 +277,8 @@ class Collector:
              if self.can_fast_delete(instance):
                  with transaction.mark_for_rollback_on_error():
                      count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-+                # Clear the primary key on the in-memory instance to reflect that
-+                # it has been deleted from the database.
++                # Ensure the in-memory instance reflects the deletion by clearing its PK.
 +                setattr(instance, model._meta.pk.attname, None)
                  return count, {model._meta.label: count}
  

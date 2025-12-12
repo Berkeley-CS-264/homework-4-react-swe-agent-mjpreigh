@@ -1,123 +1,65 @@
-diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
-index 87707d48f..fcb7f9d47 100644
---- a/sphinx/util/typing.py
-+++ b/sphinx/util/typing.py
-@@ -104,6 +104,36 @@ def is_system_TypeVar(typ: Any) -> bool:
-     return modname == 'typing' and isinstance(typ, TypeVar)
- 
- 
+*** Begin Patch
+*** Update File: doc/conf.py
+@@
+ def setup(app):
+@@
+     app.debug = lambda *args, **kwargs: logger.debug(*args, **kwargs)
 +
-+def _safe_name(obj: Optional[Type]) -> str:
-+    """
-+    Return a safe name for an object to be used in module.name formatting.
-+    Fallback order:
-+      - __qualname__
-+      - __name__
-+      - obj.__class__.__name__
-+      - repr(obj)
-+    This avoids producing texts like "module." when the name is missing (e.g. mocked classes).
-+    """
-+    if obj is None:
-+        return ''
-+    name = getattr(obj, '__qualname__', None) or getattr(obj, '__name__', None)
-+    if name:
-+        return name
-+    cls = getattr(obj, '__class__', None)
-+    if cls is not None:
-+        name = getattr(cls, '__name__', None)
-+        if name:
-+            return name
-+    # fallback: try to extract something readable from repr
-+    rep = repr(obj)
-+    # strip common wrappers like "<class '...'>"
-+    if rep.startswith("<class '") and rep.endswith("'>"):
-+        inner = rep[len("<class '"):-2]
-+        # return last dotted component
-+        return inner.split('.')[-1]
-+    return rep
++    # Fix for truncated base names for mocked/external bases (e.g. "torch.nn.")
++    # When autodoc runs with mocked imports, base class objects can be mocks or
++    # partial objects that render to an incomplete dotted name like "torch.nn.".
++    # Sphinx emits the 'autodoc-process-bases' event with the mutable `bases`
++    # list; here we register a handler to normalize the bases so that the
++    # "Bases: ..." line shows the full dotted name (module + class).
++    def _fix_autodoc_bases(app, fullname, obj, options, bases):
++        # bases is a list of objects (types) that will be passed to restify().
++        # If restify would produce a truncated name like "pkg.mod.", try to
++        # replace the entry with a string "pkg.mod.ClassName" constructed from
++        # available attributes (prefer __module__ and __qualname__). If we can
++        # not recover a class name, leave it untouched.
++        fixed = []
++        for b in bases:
++            try:
++                # If it's already a string, keep it
++                if isinstance(b, str):
++                    fixed.append(b)
++                    continue
 +
- def restify(cls: Optional[Type]) -> str:
-     """Convert python class to a reST reference."""
-     from sphinx.util import inspect  # lazy loading
-@@ -121,7 +151,7 @@ def restify(cls: Optional[Type]) -> str:
-             if sys.version_info > (3, 10):
-                 # newtypes have correct module info since Python 3.10+
-                 print(cls, type(cls), dir(cls))
--                return ':py:class:`%s.%s`' % (cls.__module__, cls.__name__)
-+                return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
-             else:
-                 return ':py:class:`%s`' % cls.__name__
-         elif UnionType and isinstance(cls, UnionType):
-@@ -193,17 +223,17 @@ def _restify_py37(cls: Optional[Type]) -> str:
-         return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
-     elif hasattr(cls, '__qualname__'):
-         if cls.__module__ == 'typing':
--            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`~%s.%s`' % (cls.__module__, _safe_name(cls))
-         else:
--            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
-     elif isinstance(cls, ForwardRef):
-         return ':py:class:`%s`' % cls.__forward_arg__
-     else:
-         # not a class (ex. TypeVar)
-         if cls.__module__ == 'typing':
--            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`~%s.%s`' % (cls.__module__, _safe_name(cls))
-         else:
--            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`%s.%s`' % (cls.__module__, _safe_name(cls))
- 
- 
- def _restify_py36(cls: Optional[Type]) -> str:
-@@ -220,7 +250,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
-         else:
-             qualname = repr(cls).replace('typing.', '')
-     elif hasattr(cls, '__qualname__'):
--        qualname = '%s.%s' % (module, cls.__qualname__)
-+        qualname = '%s.%s' % (module, _safe_name(cls))
-     else:
-         qualname = repr(cls)
- 
-@@ -275,9 +305,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
-             return ':py:obj:`Union`'
-     elif hasattr(cls, '__qualname__'):
-         if cls.__module__ == 'typing':
--            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`~%s.%s`' % (cls.__module__, _safe_name(cls))
-         else:
--            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
-     elif hasattr(cls, '_name'):
-         # SpecialForm
-         if cls.__module__ == 'typing':
-@@ -287,9 +317,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
-     elif hasattr(cls, '__name__'):
-         # not a class (ex. TypeVar)
-         if cls.__module__ == 'typing':
--            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`~%s.%s`' % (cls.__module__, _safe_name(cls))
-         else:
--            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`%s.%s`' % (cls.__module__, _safe_name(cls))
-     else:
-         # others (ex. Any)
-         if cls.__module__ == 'typing':
-@@ -355,7 +385,7 @@ def _stringify_py37(annotation: Any) -> str:
-         else:
-             qualname = stringify(annotation.__origin__)  # ex. Union
-     elif hasattr(annotation, '__qualname__'):
--        qualname = '%s.%s' % (module, annotation.__qualname__)
-+        qualname = '%s.%s' % (module, _safe_name(annotation))
-     elif hasattr(annotation, '__origin__'):
-         # instantiated generic provided by a user
-         qualname = stringify(annotation.__origin__)
-@@ -420,7 +450,7 @@ def _stringify_py36(annotation: Any) -> str:
-         else:
-             qualname = repr(annotation).replace('typing.', '')
-     elif hasattr(annotation, '__qualname__'):
--        qualname = '%s.%s' % (module, annotation.__qualname__)
-+        qualname = '%s.%s' % (module, _safe_name(annotation))
-     else:
-         qualname = repr(annotation)
- 
++                # Try to get module and qualname/name
++                mod = getattr(b, '__module__', None)
++                qual = getattr(b, '__qualname__', None) or getattr(b, '__name__', None)
++
++                # Some mocked objects expose a fullname via repr, try to parse it.
++                if (not qual or qual.endswith('.')) and not isinstance(b, type):
++                    # fallback: parse repr like "<class 'torch.nn.modules.module.Module'>" etc.
++                    r = repr(b)
++                    # look for patterns like "<class 'pkg.mod.Class'>"
++                    import re
++                    m = re.search(r"<class '([^']+)'>", r)
++                    if m:
++                        fullname_token = m.group(1)
++                        # split into module and qualname
++                        if '.' in fullname_token:
++                            fixed.append(fullname_token)
++                            continue
++
++                if mod and qual:
++                    # good: produce module + qualname
++                    fixed.append(mod + '.' + qual)
++                    continue
++
++            except Exception:
++                # if anything goes wrong, fall back to original base
++                pass
++
++            # default: keep original base
++            fixed.append(b)
++
++        # mutate bases in-place as Sphinx expects
++        bases[:] = fixed
++
++    app.connect('autodoc-process-bases', _fix_autodoc_bases)
+*** End Patch
+*** End Patch
+
+No changes detected to generate a patch.

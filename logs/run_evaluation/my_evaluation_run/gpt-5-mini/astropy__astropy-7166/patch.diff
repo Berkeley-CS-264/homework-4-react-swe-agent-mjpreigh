@@ -1,0 +1,23 @@
+diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
+index de3fb01d1..d85610bf2 100644
+--- a/astropy/utils/misc.py
++++ b/astropy/utils/misc.py
+@@ -528,9 +528,16 @@ class InheritDocstrings(type):
+                 not key.startswith('_'))
+ 
+         for key, val in dct.items():
+-            if (inspect.isfunction(val) and
++            # Support not only plain functions but also descriptors such as
++            # classmethod, staticmethod and property.  For these descriptors
++            # the object in the class __dict__ is not a function, so
++            # inspect.isfunction(val) would be False.  We therefore check
++            # for those common descriptor types as well.  Use getattr to
++            # safely check whether a docstring is already present.
++            if ((inspect.isfunction(val) or
++                 isinstance(val, (classmethod, staticmethod, property))) and
+                 is_public_member(key) and
+-                val.__doc__ is None):
++                getattr(val, '__doc__', None) is None):
+                 for base in cls.__mro__[1:]:
+                     super_method = getattr(base, key, None)
+                     if super_method is not None:

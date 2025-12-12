@@ -3,14 +3,14 @@
         "patch_is_None": false,
         "patch_exists": true,
         "patch_successfully_applied": true,
-        "resolved": true,
+        "resolved": false,
         "tests_status": {
             "FAIL_TO_PASS": {
-                "success": [
+                "success": [],
+                "failure": [
                     "testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_failed",
                     "testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_passed_strict"
-                ],
-                "failure": []
+                ]
             },
             "PASS_TO_PASS": {
                 "success": [
@@ -54,7 +54,6 @@
                     "testing/test_skipping.py::TestXFail::test_xfail_condition_keyword[False]",
                     "testing/test_skipping.py::TestXFail::test_strict_xfail_default_from_file[true]",
                     "testing/test_skipping.py::TestXFail::test_strict_xfail_default_from_file[false]",
-                    "testing/test_skipping.py::TestXFailwithSetupTeardown::test_failing_setup_issue9",
                     "testing/test_skipping.py::TestXFailwithSetupTeardown::test_failing_teardown_issue9",
                     "testing/test_skipping.py::TestSkip::test_skip_class",
                     "testing/test_skipping.py::TestSkip::test_skips_on_false_string",
@@ -80,7 +79,6 @@
                     "testing/test_skipping.py::test_errors_in_xfail_skip_expressions",
                     "testing/test_skipping.py::test_xfail_skipif_with_globals",
                     "testing/test_skipping.py::test_default_markers",
-                    "testing/test_skipping.py::test_xfail_test_setup_exception",
                     "testing/test_skipping.py::test_imperativeskip_on_xfail_test",
                     "testing/test_skipping.py::TestBooleanCondition::test_skipif",
                     "testing/test_skipping.py::TestBooleanCondition::test_skipif_noreason",
@@ -93,7 +91,10 @@
                     "testing/test_skipping.py::test_summary_list_after_errors",
                     "testing/test_skipping.py::test_relpath_rootdir"
                 ],
-                "failure": []
+                "failure": [
+                    "testing/test_skipping.py::TestXFailwithSetupTeardown::test_failing_setup_issue9",
+                    "testing/test_skipping.py::test_xfail_test_setup_exception"
+                ]
             },
             "FAIL_TO_FAIL": {
                 "success": [],

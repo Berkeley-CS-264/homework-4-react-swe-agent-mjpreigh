@@ -1,24 +1,35 @@
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..915e2d813 100644
+index 4eddd12b1..c833372ca 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -303,6 +303,20 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
-         for trans in transformers:
+@@ -293,16 +293,23 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+             Estimator instance.
+         """
+         super().set_output(transform=transform)
+-        transformers = (
+-            trans
+-            for _, trans, _ in chain(
+-                self.transformers, getattr(self, "transformers_", [])
+-            )
+-            if trans not in {"passthrough", "drop"}
+-        )
+-        for trans in transformers:
++        seen = set()
++        def _set_if_needed(trans):
++            if trans in {"passthrough", "drop"}:
++                return
++            tid = id(trans)
++            if tid in seen:
++                return
++            seen.add(tid)
              _safe_set_output(trans, transform=transform)
  
-+        # Ensure that the `remainder` estimator (when provided as an estimator)
-+        # also has its output configured. This was previously missed when the
-+        # ColumnTransformer was not yet fitted and hence the remainder was not
-+        # part of `transformers_`.
-+        remainder = getattr(self, "remainder", None)
-+        if remainder is not None and remainder not in {"passthrough", "drop"}:
-+            # _safe_set_output already handles estimators that don't support
-+            # set_output; wrap in try/except to be defensive in case of unexpected objects.
-+            try:
-+                _safe_set_output(remainder, transform=transform)
-+            except Exception:
-+                # Keep current behavior if remainder cannot be configured.
-+                pass
++        for _, trans, _ in chain(self.transformers, getattr(self, "transformers_", [])):
++            _set_if_needed(trans)
++
++        # Also set output on remainder estimator if it's an estimator
++        if hasattr(self, "remainder") and self.remainder not in {"passthrough", "drop"}:
++            _set_if_needed(self.remainder)
 +
          return self
  

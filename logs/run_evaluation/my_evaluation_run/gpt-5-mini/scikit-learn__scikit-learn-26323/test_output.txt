@@ -153,26 +153,37 @@ Date:   Wed Sep 10 15:57:59 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 586f4318ffcdfbd9a1093f35ad43e81983740b66
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..915e2d813 100644
+index 4eddd12b1..c833372ca 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -303,6 +303,20 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
-         for trans in transformers:
+@@ -293,16 +293,23 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+             Estimator instance.
+         """
+         super().set_output(transform=transform)
+-        transformers = (
+-            trans
+-            for _, trans, _ in chain(
+-                self.transformers, getattr(self, "transformers_", [])
+-            )
+-            if trans not in {"passthrough", "drop"}
+-        )
+-        for trans in transformers:
++        seen = set()
++        def _set_if_needed(trans):
++            if trans in {"passthrough", "drop"}:
++                return
++            tid = id(trans)
++            if tid in seen:
++                return
++            seen.add(tid)
              _safe_set_output(trans, transform=transform)
  
-+        # Ensure that the `remainder` estimator (when provided as an estimator)
-+        # also has its output configured. This was previously missed when the
-+        # ColumnTransformer was not yet fitted and hence the remainder was not
-+        # part of `transformers_`.
-+        remainder = getattr(self, "remainder", None)
-+        if remainder is not None and remainder not in {"passthrough", "drop"}:
-+            # _safe_set_output already handles estimators that don't support
-+            # set_output; wrap in try/except to be defensive in case of unexpected objects.
-+            try:
-+                _safe_set_output(remainder, transform=transform)
-+            except Exception:
-+                # Keep current behavior if remainder cannot be configured.
-+                pass
++        for _, trans, _ in chain(self.transformers, getattr(self, "transformers_", [])):
++            _set_if_needed(trans)
++
++        # Also set output on remainder estimator if it's an estimator
++        if hasattr(self, "remainder") and self.remainder not in {"passthrough", "drop"}:
++            _set_if_needed(self.remainder)
 +
          return self
  
@@ -323,12 +334,12 @@ Obtaining file:///testbed
   Running command python setup.py egg_info
   Partial import of sklearn during the build process.
   running egg_info
-  creating /tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info
-  writing /tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info/PKG-INFO
-  writing dependency_links to /tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info/dependency_links.txt
-  writing requirements to /tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info/requires.txt
-  writing top-level names to /tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info/top_level.txt
-  writing manifest file '/tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info/SOURCES.txt'
+  creating /tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info
+  writing /tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info/dependency_links.txt
+  writing requirements to /tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info/requires.txt
+  writing top-level names to /tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info/SOURCES.txt'
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
@@ -535,7 +546,7 @@ Obtaining file:///testbed
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
   dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
-  reading manifest file '/tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info/SOURCES.txt'
+  reading manifest file '/tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info/SOURCES.txt'
   reading manifest template 'MANIFEST.in'
   warning: no previously-included files matching '*' found under directory 'asv_benchmarks'
   warning: no previously-included files matching '*' found under directory 'benchmarks'
@@ -555,7 +566,7 @@ Obtaining file:///testbed
   warning: no previously-included files found matching 'SECURITY.md'
   warning: no previously-included files found matching 'PULL_REQUEST_TEMPLATE.md'
   adding license file 'COPYING'
-  writing manifest file '/tmp/pip-pip-egg-info-jsxttzyz/scikit_learn.egg-info/SOURCES.txt'
+  writing manifest file '/tmp/pip-pip-egg-info-s_e3jpup/scikit_learn.egg-info/SOURCES.txt'
   Preparing metadata (setup.py): finished with status 'done'
 Requirement already satisfied: numpy>=1.17.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (1.26.4)
 Requirement already satisfied: scipy>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (1.13.0)
@@ -1051,7 +1062,7 @@ sklearn/compose/tests/test_column_transformer.py [32m.[0m[32m.[0m[32m.[0m
 [32mPASSED[0m sklearn/compose/tests/test_column_transformer.py::[1mtest_empty_selection_pandas_output[bool_int][0m
 [32mPASSED[0m sklearn/compose/tests/test_column_transformer.py::[1mtest_raise_error_if_index_not_aligned[0m
 [32mPASSED[0m sklearn/compose/tests/test_column_transformer.py::[1mtest_remainder_set_output[0m
-[32m============================= [32m[1m189 passed[0m[32m in 1.28s[0m[32m ==============================[0m
+[32m============================= [32m[1m189 passed[0m[32m in 1.00s[0m[32m ==============================[0m
 + : '>>>>> End Test Output'
 + git checkout 586f4318ffcdfbd9a1093f35ad43e81983740b66 sklearn/compose/tests/test_column_transformer.py
 Updated 1 path from cec545222
