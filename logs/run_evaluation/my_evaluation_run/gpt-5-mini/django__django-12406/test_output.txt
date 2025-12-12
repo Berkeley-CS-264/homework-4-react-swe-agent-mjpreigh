@@ -146,7 +146,7 @@ On branch main
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   django/forms/widgets.py
+	modified:   django/db/models/fields/related.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -156,34 +156,41 @@ Date:   Wed Sep 10 10:41:10 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff 335c9c94acf263901fb023404408880245b0c4b4
+diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py
+index f269d9e17f..479c7695c6 100644
+--- a/django/db/models/fields/related.py
++++ b/django/db/models/fields/related.py
+@@ -415,6 +415,24 @@ class RelatedField(FieldCacheMixin, Field):
+             defaults.update({
+                 'limit_choices_to': limit_choices_to,
+             })
++
++        # If the model field is not blank and the widget is a RadioSelect,
++        # avoid providing an empty_label to the ModelChoiceField. RadioSelect
++        # has an inherent unfilled state and showing a "---------" choice
++        # makes that blank option look like a valid choice for required fields.
++        # Respect an explicit empty_label in kwargs if provided.
++        widget = kwargs.get('widget')
++        if widget is None and 'widget' in defaults:
++            widget = defaults['widget']
++
++        if ('empty_label' not in kwargs) and (not self.blank):
++            try:
++                from django.forms import RadioSelect
++            except Exception:
++                RadioSelect = None
++            if RadioSelect is not None and isinstance(widget, RadioSelect):
++                defaults['empty_label'] = None
++
+         defaults.update(kwargs)
+         return super().formfield(**defaults)
+ 
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
 +++ export CONDA_EXE=/opt/miniconda3/bin/conda
 +++ CONDA_EXE=/opt/miniconda3/bin/conda
 +++ export _CE_M=
-diff --git a/django/forms/widgets.py b/django/forms/widgets.py
-index 40ac1d3162..9a54075628 100644
---- a/django/forms/widgets.py
-+++ b/django/forms/widgets.py
-@@ -600,9 +600,16 @@ class ChoiceWidget(Widget):
-             groups.append((group_name, subgroup, index))
- 
-             for subvalue, sublabel in choices:
-+                # Don't select the empty choice for radio widgets when the field
-+                # is required and no value has been provided. RadioSelect has an
-+                # inherent unfilled state so showing "---------" as checked is
-+                # confusing for required fields.
-+                empty_choice = (subvalue is None or subvalue == '')
-+                no_value_selected = (value == [''])
-                 selected = (
-                     str(subvalue) in value and
--                    (not has_selected or self.allow_multiple_selected)
-+                    (not has_selected or self.allow_multiple_selected) and
-+                    not (self.input_type == 'radio' and self.is_required and empty_choice and no_value_selected)
-                 )
-                 has_selected |= selected
-                 subgroup.append(self.create_option(
 +++ _CE_M=
 +++ export _CE_CONDA=
 +++ _CE_CONDA=
@@ -404,7 +411,7 @@ test_limit_nonexistent_field (model_forms.tests.ModelFormBaseTest) ... ok
 test_missing_fields_attribute (model_forms.tests.ModelFormBaseTest) ... ok
 test_mixmodel_form (model_forms.tests.ModelFormBaseTest) ... ok
 test_no_model_class (model_forms.tests.ModelFormBaseTest) ... ok
-test_non_blank_foreign_key_with_radio (model_forms.tests.ModelFormBaseTest) ... FAIL
+test_non_blank_foreign_key_with_radio (model_forms.tests.ModelFormBaseTest) ... ok
 test_orderfields2_form (model_forms.tests.ModelFormBaseTest) ... ok
 test_orderfields_form (model_forms.tests.ModelFormBaseTest) ... ok
 test_override_field (model_forms.tests.ModelFormBaseTest) ... ok
@@ -506,7 +513,54 @@ test_label_overrides (model_forms.tests.TestFieldOverridesByFormMeta) ... ok
 test_widget_overrides (model_forms.tests.TestFieldOverridesByFormMeta) ... ok
 test_notrequired_overrides_notblank (model_forms.tests.ValidationTest) ... ok
 test_validates_with_replaced_field_excluded (model_forms.tests.ValidationTest) ... ok
-test_validates_with_replaced_field_not_specified (model_forms.tests.ValidationTest) ... Testing against Django installed in '/testbed/django'
+test_validates_with_replaced_field_not_specified (model_forms.tests.ValidationTest) ... ok
+
+======================================================================
+ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=True, widget=<class 'django.forms.widgets.RadioSelect'>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
+    blank=blank,
+  File "/testbed/django/forms/models.py", line 1197, in __init__
+    initial=initial, help_text=help_text, **kwargs
+TypeError: __init__() got an unexpected keyword argument 'blank'
+
+======================================================================
+ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=False, widget=<class 'django.forms.widgets.RadioSelect'>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
+    blank=blank,
+  File "/testbed/django/forms/models.py", line 1197, in __init__
+    initial=initial, help_text=help_text, **kwargs
+TypeError: __init__() got an unexpected keyword argument 'blank'
+
+======================================================================
+ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=True, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc729f28>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
+    blank=blank,
+  File "/testbed/django/forms/models.py", line 1197, in __init__
+    initial=initial, help_text=help_text, **kwargs
+TypeError: __init__() got an unexpected keyword argument 'blank'
+
+======================================================================
+ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=False, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc729f28>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
+    blank=blank,
+  File "/testbed/django/forms/models.py", line 1197, in __init__
+    initial=initial, help_text=help_text, **kwargs
+TypeError: __init__() got an unexpected keyword argument 'blank'
+
+----------------------------------------------------------------------
+Ran 169 tests in 0.332s
+
+FAILED (errors=4)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
 Importing application model_forms
 Skipping setup of unused database(s): other.
 Operations to perform:
@@ -573,78 +627,6 @@ Running migrations:
   Applying sites.0001_initial... OK
   Applying sites.0002_alter_domain_unique... OK
 System check identified no issues (0 silenced).
-ok
-
-======================================================================
-ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=True, widget=<class 'django.forms.widgets.RadioSelect'>)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
-    blank=blank,
-  File "/testbed/django/forms/models.py", line 1197, in __init__
-    initial=initial, help_text=help_text, **kwargs
-TypeError: __init__() got an unexpected keyword argument 'blank'
-
-======================================================================
-ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=False, widget=<class 'django.forms.widgets.RadioSelect'>)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
-    blank=blank,
-  File "/testbed/django/forms/models.py", line 1197, in __init__
-    initial=initial, help_text=help_text, **kwargs
-TypeError: __init__() got an unexpected keyword argument 'blank'
-
-======================================================================
-ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=True, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc5da748>)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
-    blank=blank,
-  File "/testbed/django/forms/models.py", line 1197, in __init__
-    initial=initial, help_text=help_text, **kwargs
-TypeError: __init__() got an unexpected keyword argument 'blank'
-
-======================================================================
-ERROR: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests) (blank=False, widget=<django.forms.widgets.RadioSelect object at 0x7ffffc5da748>)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/model_forms/test_modelchoicefield.py", line 155, in test_choices_radio_blank
-    blank=blank,
-  File "/testbed/django/forms/models.py", line 1197, in __init__
-    initial=initial, help_text=help_text, **kwargs
-TypeError: __init__() got an unexpected keyword argument 'blank'
-
-======================================================================
-FAIL: test_non_blank_foreign_key_with_radio (model_forms.tests.ModelFormBaseTest)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/testbed/tests/model_forms/tests.py", line 290, in test_non_blank_foreign_key_with_radio
-    [(character.pk, 'user')],
-AssertionError: Lists differ: [('', '---------'), (<django.forms.models.M[54 chars]er')] != [(1, 'user')]
-
-First differing element 0:
-('', '---------')
-(1, 'user')
-
-First list contains 1 additional elements.
-First extra element 1:
-(<django.forms.models.ModelChoiceIteratorValue object at 0x7ffffc3849b0>, 'user')
-
-- [('', '---------'),
--  (<django.forms.models.ModelChoiceIteratorValue object at 0x7ffffc3849b0>,
--   'user')]
-? ^
-
-+ [(1, 'user')]
-? ^^^^
-
-
-----------------------------------------------------------------------
-Ran 169 tests in 0.331s
-
-FAILED (failures=1, errors=4)
-Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
 + : '>>>>> End Test Output'
 + git checkout 335c9c94acf263901fb023404408880245b0c4b4 tests/model_forms/models.py tests/model_forms/test_modelchoicefield.py tests/model_forms/tests.py
 Updated 3 paths from 691e9683de

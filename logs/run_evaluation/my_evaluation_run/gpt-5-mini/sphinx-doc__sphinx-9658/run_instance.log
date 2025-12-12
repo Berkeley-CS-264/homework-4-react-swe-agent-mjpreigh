@@ -1,377 +1,263 @@
-2025-12-11 22:18:05,568 - INFO - Creating container for sphinx-doc__sphinx-9658...
-2025-12-11 22:18:05,605 - INFO - Container for sphinx-doc__sphinx-9658 created: 85c7c4959ee63cc5ab736eb24fd4acfeb07295e836ee14364d413510e92501da
-2025-12-11 22:18:05,714 - INFO - Container for sphinx-doc__sphinx-9658 started: 85c7c4959ee63cc5ab736eb24fd4acfeb07295e836ee14364d413510e92501da
-2025-12-11 22:18:05,714 - INFO - Intermediate patch for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/patch.diff, now applying to container...
-2025-12-11 22:18:05,827 - INFO - >>>>> Applied Patch:
+2025-12-12 09:28:43,267 - INFO - Creating container for sphinx-doc__sphinx-9658...
+2025-12-12 09:28:43,296 - INFO - Container for sphinx-doc__sphinx-9658 created: d0f039412ce03b2a439d636fb151430e0bb6737172b47216e92d6de9ad975094
+2025-12-12 09:28:43,361 - INFO - Container for sphinx-doc__sphinx-9658 started: d0f039412ce03b2a439d636fb151430e0bb6737172b47216e92d6de9ad975094
+2025-12-12 09:28:43,361 - INFO - Intermediate patch for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/patch.diff, now applying to container...
+2025-12-12 09:28:43,476 - INFO - >>>>> Applied Patch:
 Checking patch sphinx/util/typing.py...
 Applied patch sphinx/util/typing.py cleanly.
 
-2025-12-11 22:18:06,030 - INFO - Git diff before:
+2025-12-12 09:28:43,660 - INFO - Git diff before:
 diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
-index 87707d48f..e581d8bcc 100644
+index 87707d48f..fcb7f9d47 100644
 --- a/sphinx/util/typing.py
 +++ b/sphinx/util/typing.py
-@@ -121,7 +121,7 @@ def restify(cls: Optional[Type]) -> str:
+@@ -104,6 +104,36 @@ def is_system_TypeVar(typ: Any) -> bool:
+     return modname == 'typing' and isinstance(typ, TypeVar)
+ 
+ 
++
++def _safe_name(obj: Optional[Type]) -> str:
++    """
++    Return a safe name for an object to be used in module.name formatting.
++    Fallback order:
++      - __qualname__
++      - __name__
++      - obj.__class__.__name__
++      - repr(obj)
++    This avoids producing texts like "module." when the name is missing (e.g. mocked classes).
++    """
++    if obj is None:
++        return ''
++    name = getattr(obj, '__qualname__', None) or getattr(obj, '__name__', None)
++    if name:
++        return name
++    cls = getattr(obj, '__class__', None)
++    if cls is not None:
++        name = getattr(cls, '__name__', None)
++        if name:
++            return name
++    # fallback: try to extract something readable from repr
++    rep = repr(obj)
++    # strip common wrappers like "<class '...'>"
++    if rep.startswith("<class '") and rep.endswith("'>"):
++        inner = rep[len("<class '"):-2]
++        # return last dotted component
++        return inner.split('.')[-1]
++    return rep
++
+ def restify(cls: Optional[Type]) -> str:
+     """Convert python class to a reST reference."""
+     from sphinx.util import inspect  # lazy loading
+@@ -121,7 +151,7 @@ def restify(cls: Optional[Type]) -> str:
              if sys.version_info > (3, 10):
                  # newtypes have correct module info since Python 3.10+
                  print(cls, type(cls), dir(cls))
 -                return ':py:class:`%s.%s`' % (cls.__module__, cls.__name__)
-+                return ':py:class:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++                return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
              else:
                  return ':py:class:`%s`' % cls.__name__
          elif UnionType and isinstance(cls, UnionType):
-@@ -146,6 +146,50 @@ def restify(cls: Optional[Type]) -> str:
-     except (AttributeError, TypeError):
-         return repr(cls)
- 
-+def _get_class_name_for_restify(cls: object) -> str:
-+    \"\"\"Best-effort class name for use in restify.
-+
-+    Some mocked or dynamically created objects may have missing or broken
-+    __qualname__ or __name__ attributes which leads to output like
-+    ``torch.nn.``. This helper tries several fallbacks:
-+    - __qualname__
-+    - __name__
-+    - attempt to extract name from repr() (useful for Mock objects)
-+    - cls.__class__.__name__
-+    - finally repr(cls)
-+    \"\"\"
-+    # Prefer __qualname__ then __name__
-+    try:
-+        name = getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None)
-+        if name:
-+            name = str(name)
-+            if name.strip():
-+                return name
-+    except Exception:
-+        pass
-+
-+    # Try to find a dotted name in repr(), e.g. "name='torch.nn.Module'" from Mock
-+    try:
-+        import re
-+        r = repr(cls)
-+        m = re.search(r"name=['\\\"](?P<n>[\\w\\.]+)['\\\"]", r)
-+        if m:
-+            cand = m.group('n').split('.')[-1]
-+            if cand:
-+                return cand
-+    except Exception:
-+        pass
-+
-+    # Fallback to the class name of the object (e.g., Mock)
-+    try:
-+        c = getattr(cls, '__class__', None)
-+        if c is not None:
-+            return getattr(c, '__name__', repr(cls))
-+    except Exception:
-+        pass
-+
-+    return repr(cls)
-+
- 
- def _restify_py37(cls: Optional[Type]) -> str:
-     """Convert python class to a reST reference."""
-@@ -193,17 +237,17 @@ def _restify_py37(cls: Optional[Type]) -> str:
+@@ -193,17 +223,17 @@ def _restify_py37(cls: Optional[Type]) -> str:
          return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
      elif hasattr(cls, '__qualname__'):
          if cls.__module__ == 'typing':
 -            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
      elif isinstance(cls, ForwardRef):
          return ':py:class:`%s`' % cls.__forward_arg__
      else:
          # not a class (ex. TypeVar)
          if cls.__module__ == 'typing':
 -            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`%s.%s`' % (cls.__module__, _safe_name(cls))
  
  
  def _restify_py36(cls: Optional[Type]) -> str:
-@@ -212,7 +256,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
-         if getattr(cls, '_name', None):
-             qualname = cls._name
-         elif getattr(cls, '__qualname__', None):
--            qualname = cls.__qualname__
-+            qualname = _get_class_name_for_restify(cls)
-         elif getattr(cls, '__forward_arg__', None):
-             qualname = cls.__forward_arg__
-         elif getattr(cls, '__origin__', None):
-@@ -220,7 +264,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -220,7 +250,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
          else:
              qualname = repr(cls).replace('typing.', '')
      elif hasattr(cls, '__qualname__'):
 -        qualname = '%s.%s' % (module, cls.__qualname__)
-+        qualname = '%s.%s' % (module, _get_class_name_for_restify(cls))
++        qualname = '%s.%s' % (module, _safe_name(cls))
      else:
          qualname = repr(cls)
  
-@@ -275,9 +319,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -275,9 +305,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
              return ':py:obj:`Union`'
      elif hasattr(cls, '__qualname__'):
          if cls.__module__ == 'typing':
 -            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
      elif hasattr(cls, '_name'):
          # SpecialForm
          if cls.__module__ == 'typing':
-@@ -287,9 +331,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -287,9 +317,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
      elif hasattr(cls, '__name__'):
          # not a class (ex. TypeVar)
          if cls.__module__ == 'typing':
 -            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`%s.%s`' % (cls.__module__, _safe_name(cls))
      else:
          # others (ex. Any)
          if cls.__module__ == 'typing':
-@@ -316,7 +360,7 @@ def stringify(annotation: Any) -> str:
-     elif inspect.isNewType(annotation):
-         if sys.version_info > (3, 10):
-             # newtypes have correct module info since Python 3.10+
--            return '%s.%s' % (annotation.__module__, annotation.__name__)
-+            return '%s.%s' % (annotation.__module__, getattr(annotation, '__name__', _get_class_name_for_restify(annotation)))
-         else:
-             return annotation.__name__
-     elif not annotation:
-@@ -332,7 +376,7 @@ def stringify(annotation: Any) -> str:
-         if hasattr(annotation, '__args__'):  # PEP 585 generic
-             return repr(annotation)
-         else:
--            return annotation.__qualname__
-+            return _get_class_name_for_restify(annotation)
-     elif annotation is Ellipsis:
-         return '...'
- 
-@@ -349,13 +393,13 @@ def _stringify_py37(annotation: Any) -> str:
-         if getattr(annotation, '_name', None):
-             qualname = annotation._name
-         elif getattr(annotation, '__qualname__', None):
--            qualname = annotation.__qualname__
-+            qualname = _get_class_name_for_restify(annotation)
-         elif getattr(annotation, '__forward_arg__', None):
-             qualname = annotation.__forward_arg__
+@@ -355,7 +385,7 @@ def _stringify_py37(annotation: Any) -> str:
          else:
              qualname = stringify(annotation.__origin__)  # ex. Union
      elif hasattr(annotation, '__qualname__'):
 -        qualname = '%s.%s' % (module, annotation.__qualname__)
-+        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
++        qualname = '%s.%s' % (module, _safe_name(annotation))
      elif hasattr(annotation, '__origin__'):
          # instantiated generic provided by a user
          qualname = stringify(annotation.__origin__)
-@@ -412,7 +456,7 @@ def _stringify_py36(annotation: Any) -> str:
-         if getattr(annotation, '_name', None):
-             qualname = annotation._name
-         elif getattr(annotation, '__qualname__', None):
--            qualname = annotation.__qualname__
-+            qualname = _get_class_name_for_restify(annotation)
-         elif getattr(annotation, '__forward_arg__', None):
-             qualname = annotation.__forward_arg__
-         elif getattr(annotation, '__origin__', None):
-@@ -420,7 +464,7 @@ def _stringify_py36(annotation: Any) -> str:
+@@ -420,7 +450,7 @@ def _stringify_py36(annotation: Any) -> str:
          else:
              qualname = repr(annotation).replace('typing.', '')
      elif hasattr(annotation, '__qualname__'):
 -        qualname = '%s.%s' % (module, annotation.__qualname__)
-+        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
++        qualname = '%s.%s' % (module, _safe_name(annotation))
      else:
          qualname = repr(annotation)
-2025-12-11 22:18:06,030 - INFO - Eval script for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/eval.sh; copying to container...
-2025-12-11 22:18:09,105 - INFO - Test runtime: 3.03 seconds
-2025-12-11 22:18:09,106 - INFO - Test output for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/test_output.txt
-2025-12-11 22:18:09,192 - INFO - Git diff after:
+2025-12-12 09:28:43,661 - INFO - Eval script for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/eval.sh; copying to container...
+2025-12-12 09:28:47,024 - INFO - Test runtime: 3.31 seconds
+2025-12-12 09:28:47,025 - INFO - Test output for sphinx-doc__sphinx-9658 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sphinx-doc__sphinx-9658/test_output.txt
+2025-12-12 09:28:47,106 - INFO - Git diff after:
 diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
-index 87707d48f..e581d8bcc 100644
+index 87707d48f..fcb7f9d47 100644
 --- a/sphinx/util/typing.py
 +++ b/sphinx/util/typing.py
-@@ -121,7 +121,7 @@ def restify(cls: Optional[Type]) -> str:
+@@ -104,6 +104,36 @@ def is_system_TypeVar(typ: Any) -> bool:
+     return modname == 'typing' and isinstance(typ, TypeVar)
+ 
+ 
++
++def _safe_name(obj: Optional[Type]) -> str:
++    """
++    Return a safe name for an object to be used in module.name formatting.
++    Fallback order:
++      - __qualname__
++      - __name__
++      - obj.__class__.__name__
++      - repr(obj)
++    This avoids producing texts like "module." when the name is missing (e.g. mocked classes).
++    """
++    if obj is None:
++        return ''
++    name = getattr(obj, '__qualname__', None) or getattr(obj, '__name__', None)
++    if name:
++        return name
++    cls = getattr(obj, '__class__', None)
++    if cls is not None:
++        name = getattr(cls, '__name__', None)
++        if name:
++            return name
++    # fallback: try to extract something readable from repr
++    rep = repr(obj)
++    # strip common wrappers like "<class '...'>"
++    if rep.startswith("<class '") and rep.endswith("'>"):
++        inner = rep[len("<class '"):-2]
++        # return last dotted component
++        return inner.split('.')[-1]
++    return rep
++
+ def restify(cls: Optional[Type]) -> str:
+     """Convert python class to a reST reference."""
+     from sphinx.util import inspect  # lazy loading
+@@ -121,7 +151,7 @@ def restify(cls: Optional[Type]) -> str:
              if sys.version_info > (3, 10):
                  # newtypes have correct module info since Python 3.10+
                  print(cls, type(cls), dir(cls))
 -                return ':py:class:`%s.%s`' % (cls.__module__, cls.__name__)
-+                return ':py:class:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++                return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
              else:
                  return ':py:class:`%s`' % cls.__name__
          elif UnionType and isinstance(cls, UnionType):
-@@ -146,6 +146,50 @@ def restify(cls: Optional[Type]) -> str:
-     except (AttributeError, TypeError):
-         return repr(cls)
- 
-+def _get_class_name_for_restify(cls: object) -> str:
-+    \"\"\"Best-effort class name for use in restify.
-+
-+    Some mocked or dynamically created objects may have missing or broken
-+    __qualname__ or __name__ attributes which leads to output like
-+    ``torch.nn.``. This helper tries several fallbacks:
-+    - __qualname__
-+    - __name__
-+    - attempt to extract name from repr() (useful for Mock objects)
-+    - cls.__class__.__name__
-+    - finally repr(cls)
-+    \"\"\"
-+    # Prefer __qualname__ then __name__
-+    try:
-+        name = getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None)
-+        if name:
-+            name = str(name)
-+            if name.strip():
-+                return name
-+    except Exception:
-+        pass
-+
-+    # Try to find a dotted name in repr(), e.g. "name='torch.nn.Module'" from Mock
-+    try:
-+        import re
-+        r = repr(cls)
-+        m = re.search(r"name=['\\\"](?P<n>[\\w\\.]+)['\\\"]", r)
-+        if m:
-+            cand = m.group('n').split('.')[-1]
-+            if cand:
-+                return cand
-+    except Exception:
-+        pass
-+
-+    # Fallback to the class name of the object (e.g., Mock)
-+    try:
-+        c = getattr(cls, '__class__', None)
-+        if c is not None:
-+            return getattr(c, '__name__', repr(cls))
-+    except Exception:
-+        pass
-+
-+    return repr(cls)
-+
- 
- def _restify_py37(cls: Optional[Type]) -> str:
-     """Convert python class to a reST reference."""
-@@ -193,17 +237,17 @@ def _restify_py37(cls: Optional[Type]) -> str:
+@@ -193,17 +223,17 @@ def _restify_py37(cls: Optional[Type]) -> str:
          return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
      elif hasattr(cls, '__qualname__'):
          if cls.__module__ == 'typing':
 -            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
      elif isinstance(cls, ForwardRef):
          return ':py:class:`%s`' % cls.__forward_arg__
      else:
          # not a class (ex. TypeVar)
          if cls.__module__ == 'typing':
 -            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`%s.%s`' % (cls.__module__, _safe_name(cls))
  
  
  def _restify_py36(cls: Optional[Type]) -> str:
-@@ -212,7 +256,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
-         if getattr(cls, '_name', None):
-             qualname = cls._name
-         elif getattr(cls, '__qualname__', None):
--            qualname = cls.__qualname__
-+            qualname = _get_class_name_for_restify(cls)
-         elif getattr(cls, '__forward_arg__', None):
-             qualname = cls.__forward_arg__
-         elif getattr(cls, '__origin__', None):
-@@ -220,7 +264,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -220,7 +250,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
          else:
              qualname = repr(cls).replace('typing.', '')
      elif hasattr(cls, '__qualname__'):
 -        qualname = '%s.%s' % (module, cls.__qualname__)
-+        qualname = '%s.%s' % (module, _get_class_name_for_restify(cls))
++        qualname = '%s.%s' % (module, _safe_name(cls))
      else:
          qualname = repr(cls)
  
-@@ -275,9 +319,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -275,9 +305,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
              return ':py:obj:`Union`'
      elif hasattr(cls, '__qualname__'):
          if cls.__module__ == 'typing':
 -            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`~%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return ':py:class:`%s.%s`' % (cls.__module__, _get_class_name_for_restify(cls))
++            return ':py:class:`%s.%s`' % (cls.__module__, _safe_name(cls))
      elif hasattr(cls, '_name'):
          # SpecialForm
          if cls.__module__ == 'typing':
-@@ -287,9 +331,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+@@ -287,9 +317,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
      elif hasattr(cls, '__name__'):
          # not a class (ex. TypeVar)
          if cls.__module__ == 'typing':
 -            return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`~%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`~%s.%s`' % (cls.__module__, _safe_name(cls))
          else:
 -            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return ':py:obj:`%s.%s`' % (cls.__module__, getattr(cls, '__name__', _get_class_name_for_restify(cls)))
++            return ':py:obj:`%s.%s`' % (cls.__module__, _safe_name(cls))
      else:
          # others (ex. Any)
          if cls.__module__ == 'typing':
-@@ -316,7 +360,7 @@ def stringify(annotation: Any) -> str:
-     elif inspect.isNewType(annotation):
-         if sys.version_info > (3, 10):
-             # newtypes have correct module info since Python 3.10+
--            return '%s.%s' % (annotation.__module__, annotation.__name__)
-+            return '%s.%s' % (annotation.__module__, getattr(annotation, '__name__', _get_class_name_for_restify(annotation)))
-         else:
-             return annotation.__name__
-     elif not annotation:
-@@ -332,7 +376,7 @@ def stringify(annotation: Any) -> str:
-         if hasattr(annotation, '__args__'):  # PEP 585 generic
-             return repr(annotation)
-         else:
--            return annotation.__qualname__
-+            return _get_class_name_for_restify(annotation)
-     elif annotation is Ellipsis:
-         return '...'
- 
-@@ -349,13 +393,13 @@ def _stringify_py37(annotation: Any) -> str:
-         if getattr(annotation, '_name', None):
-             qualname = annotation._name
-         elif getattr(annotation, '__qualname__', None):
--            qualname = annotation.__qualname__
-+            qualname = _get_class_name_for_restify(annotation)
-         elif getattr(annotation, '__forward_arg__', None):
-             qualname = annotation.__forward_arg__
+@@ -355,7 +385,7 @@ def _stringify_py37(annotation: Any) -> str:
          else:
              qualname = stringify(annotation.__origin__)  # ex. Union
      elif hasattr(annotation, '__qualname__'):
 -        qualname = '%s.%s' % (module, annotation.__qualname__)
-+        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
++        qualname = '%s.%s' % (module, _safe_name(annotation))
      elif hasattr(annotation, '__origin__'):
          # instantiated generic provided by a user
          qualname = stringify(annotation.__origin__)
-@@ -412,7 +456,7 @@ def _stringify_py36(annotation: Any) -> str:
-         if getattr(annotation, '_name', None):
-             qualname = annotation._name
-         elif getattr(annotation, '__qualname__', None):
--            qualname = annotation.__qualname__
-+            qualname = _get_class_name_for_restify(annotation)
-         elif getattr(annotation, '__forward_arg__', None):
-             qualname = annotation.__forward_arg__
-         elif getattr(annotation, '__origin__', None):
-@@ -420,7 +464,7 @@ def _stringify_py36(annotation: Any) -> str:
+@@ -420,7 +450,7 @@ def _stringify_py36(annotation: Any) -> str:
          else:
              qualname = repr(annotation).replace('typing.', '')
      elif hasattr(annotation, '__qualname__'):
 -        qualname = '%s.%s' % (module, annotation.__qualname__)
-+        qualname = '%s.%s' % (module, _get_class_name_for_restify(annotation))
++        qualname = '%s.%s' % (module, _safe_name(annotation))
      else:
          qualname = repr(annotation)
-2025-12-11 22:18:09,193 - INFO - Grading answer for sphinx-doc__sphinx-9658...
-2025-12-11 22:18:09,201 - INFO - report: {'sphinx-doc__sphinx-9658': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['tests/test_util_typing.py::test_restify_mock']}, 'PASS_TO_PASS': {'success': [], 'failure': ['tests/test_util_typing.py::test_restify', 'tests/test_util_typing.py::test_restify_type_hints_containers', 'tests/test_util_typing.py::test_restify_type_hints_Callable', 'tests/test_util_typing.py::test_restify_type_hints_Union', 'tests/test_util_typing.py::test_restify_type_hints_typevars', 'tests/test_util_typing.py::test_restify_type_hints_custom_class', 'tests/test_util_typing.py::test_restify_type_hints_alias', 'tests/test_util_typing.py::test_restify_type_ForwardRef', 'tests/test_util_typing.py::test_restify_type_Literal', 'tests/test_util_typing.py::test_restify_pep_585', 'tests/test_util_typing.py::test_restify_broken_type_hints', 'tests/test_util_typing.py::test_stringify', 'tests/test_util_typing.py::test_stringify_type_hints_containers', 'tests/test_util_typing.py::test_stringify_type_hints_pep_585', 'tests/test_util_typing.py::test_stringify_Annotated', 'tests/test_util_typing.py::test_stringify_type_hints_string', 'tests/test_util_typing.py::test_stringify_type_hints_Callable', 'tests/test_util_typing.py::test_stringify_type_hints_Union', 'tests/test_util_typing.py::test_stringify_type_hints_typevars', 'tests/test_util_typing.py::test_stringify_type_hints_custom_class', 'tests/test_util_typing.py::test_stringify_type_hints_alias', 'tests/test_util_typing.py::test_stringify_type_Literal', 'tests/test_util_typing.py::test_stringify_broken_type_hints', 'tests/test_util_typing.py::test_stringify_mock']}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
-Result for sphinx-doc__sphinx-9658: resolved: False
-2025-12-11 22:18:09,201 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
-2025-12-11 22:18:24,309 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
-2025-12-11 22:18:24,319 - INFO - Container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run removed.
+2025-12-12 09:28:47,106 - INFO - Grading answer for sphinx-doc__sphinx-9658...
+2025-12-12 09:28:47,107 - INFO - report: {'sphinx-doc__sphinx-9658': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['tests/test_util_typing.py::test_restify_mock'], 'failure': []}, 'PASS_TO_PASS': {'success': ['tests/test_util_typing.py::test_restify', 'tests/test_util_typing.py::test_restify_type_hints_containers', 'tests/test_util_typing.py::test_restify_type_hints_Callable', 'tests/test_util_typing.py::test_restify_type_hints_Union', 'tests/test_util_typing.py::test_restify_type_hints_typevars', 'tests/test_util_typing.py::test_restify_type_hints_custom_class', 'tests/test_util_typing.py::test_restify_type_hints_alias', 'tests/test_util_typing.py::test_restify_type_ForwardRef', 'tests/test_util_typing.py::test_restify_type_Literal', 'tests/test_util_typing.py::test_restify_pep_585', 'tests/test_util_typing.py::test_restify_broken_type_hints', 'tests/test_util_typing.py::test_stringify', 'tests/test_util_typing.py::test_stringify_type_hints_containers', 'tests/test_util_typing.py::test_stringify_type_hints_pep_585', 'tests/test_util_typing.py::test_stringify_Annotated', 'tests/test_util_typing.py::test_stringify_type_hints_string', 'tests/test_util_typing.py::test_stringify_type_hints_Callable', 'tests/test_util_typing.py::test_stringify_type_hints_Union', 'tests/test_util_typing.py::test_stringify_type_hints_typevars', 'tests/test_util_typing.py::test_stringify_type_hints_custom_class', 'tests/test_util_typing.py::test_stringify_type_hints_alias', 'tests/test_util_typing.py::test_stringify_type_Literal', 'tests/test_util_typing.py::test_stringify_broken_type_hints', 'tests/test_util_typing.py::test_stringify_mock'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sphinx-doc__sphinx-9658: resolved: True
+2025-12-12 09:28:47,108 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
+2025-12-12 09:29:02,236 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run...
+2025-12-12 09:29:02,246 - INFO - Container sweb.eval.sphinx-doc__sphinx-9658.my_evaluation_run removed.

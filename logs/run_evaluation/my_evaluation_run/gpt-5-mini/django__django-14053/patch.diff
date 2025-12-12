@@ -1,34 +1,59 @@
 diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
-index 494890cc23..732f2c3c2a 100644
+index 494890cc23..d30ba81cef 100644
 --- a/django/contrib/staticfiles/storage.py
 +++ b/django/contrib/staticfiles/storage.py
-@@ -226,17 +226,26 @@ class HashedFilesMixin:
+@@ -226,17 +226,43 @@ class HashedFilesMixin:
              path for path in paths
              if matches_patterns(path, self._patterns)
          ]
 +
-+        # Track which original names we've yielded to avoid duplicate yields
-+        yielded_names = set()
++        # Track which original file names have been yielded so we don't yield
++        # the same original filename multiple times across multiple passes.
++        yielded = set()
 +
          # Do a single pass first. Post-process all files once, then repeat for
 -        # adjustable files.
-+        # adjustable files. Only yield a file when it is actually processed and
-+        # hasn't been yielded before.
++        # adjustable files. For adjustable files, we want to avoid yielding them
++        # during this initial pass to prevent duplicates, but still process them
++        # so their hashes are known for subsequent passes. Exceptions should be
++        # yielded immediately so callers can react to errors.
          for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
 -            yield name, hashed_name, processed
-+            if processed and name not in yielded_names:
++            # If an exception occurred during processing, yield it immediately.
++            if isinstance(processed, Exception):
 +                yield name, hashed_name, processed
-+                yielded_names.add(name)
++                yielded.add(name)
++                continue
++            # Only yield non-adjustable files on the first pass.
++            if name not in adjustable_paths:
++                yield name, hashed_name, processed
++                yielded.add(name)
  
++        # Restrict to adjustable files only for subsequent passes.
          paths = {path: paths[path] for path in adjustable_paths}
  
          for i in range(self.max_post_process_passes):
              substitutions = False
              for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
 -                yield name, hashed_name, processed
-+                if processed and name not in yielded_names:
-+                    yield name, hashed_name, processed
-+                    yielded_names.add(name)
++                # If an exception occurred, yield it (unless already yielded).
++                if isinstance(processed, Exception):
++                    if name not in yielded:
++                        yield name, hashed_name, processed
++                        yielded.add(name)
++                else:
++                    # Only yield a given original filename once.
++                    if name not in yielded:
++                        yield name, hashed_name, processed
++                        yielded.add(name)
                  substitutions = substitutions or subst
  
              if not substitutions:
+@@ -247,7 +273,6 @@ class HashedFilesMixin:
+ 
+         # Store the processed paths
+         self.hashed_files.update(hashed_files)
+-
+     def _post_process(self, paths, adjustable_paths, hashed_files):
+         # Sort the files by directory level
+         def path_level(name):

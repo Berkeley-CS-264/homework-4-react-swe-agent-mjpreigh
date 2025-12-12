@@ -230,24 +230,32 @@ index 2538952e3..94e1d8b32 100644
  
  extras_require = {
 diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
-index d8cb75a5f..81251d35d 100644
+index d8cb75a5f..fff615925 100644
 --- a/sphinx/ext/napoleon/docstring.py
 +++ b/sphinx/ext/napoleon/docstring.py
-@@ -28,7 +28,13 @@ logger = logging.getLogger(__name__)
+@@ -266,8 +266,22 @@ class GoogleDocstring:
+         if parse_type:
+             match = _google_typed_arg_regex.match(before)
+             if match:
++                # Standard Google style: "name(type)"
+                 _name = match.group(1).strip()
+                 _type = match.group(2)
++            else:
++                # Also accept the alternative "type name" form commonly used
++                # in Sphinx/reST param fields, e.g.:
++                #   ":param dict(str, str) opc_meta: (optional)"
++                # In that case, parse out the type (which may contain commas
++                # and parentheses) and the trailing name.
++                # We look for a closing parenthesis followed by whitespace and
++                # then the name. This is a pragmatic heuristic to handle
++                # complex type specs that appear before the parameter name.
++                alt_match = re.match(r'(.+\))\s+(.+)$', before)
++                if alt_match:
++                    _type = alt_match.group(1).strip()
++                    _name = alt_match.group(2).strip()
  
- _directive_regex = re.compile(r'\.\. \S+::')
- _google_section_regex = re.compile(r'^(\s|\w)+:\s*$')
--_google_typed_arg_regex = re.compile(r'(.+?)\(\s*(.*[^\s]+)\s*\)')
-+_google_typed_arg_regex = re.compile(
-+    # Match exactly "name(type)" (possibly with surrounding whitespace).
-+    # Anchors are important so that strings like "dict(str, str) opc_meta"
-+    # (which are of the form "type name") are NOT mistaken for the
-+    # "name(type)" Google-style form.
-+    r'^\s*([A-Za-z0-9_\*]+)\s*\(\s*(.*?)\s*\)\s*$'
-+)
- _numpy_section_regex = re.compile(r'^[=\-`:\'"~^_*+#<>]{2,}\s*$')
- _single_colon_regex = re.compile(r'(?<!:):(?!:)')
- _xref_or_code_regex = re.compile(
+         _name = self._escape_args_and_kwargs(_name)
+ 
 diff --git a/tox.ini b/tox.ini
 index a363e187f..3b8bc12d0 100644
 --- a/tox.ini
@@ -1199,30 +1207,30 @@ The dummy builder generates no files.
 
 ============================= slowest 25 durations =============================
 0.31s setup    tests/test_domain_py.py::test_domain_py_xrefs
-0.19s call     tests/test_domain_py.py::test_domain_py_canonical
+0.20s call     tests/test_domain_py.py::test_domain_py_canonical
+0.16s call     tests/test_domain_py.py::test_resolve_xref_for_properties
 0.16s call     tests/test_domain_py.py::test_domain_py_xrefs_abbreviations
-0.15s call     tests/test_domain_py.py::test_resolve_xref_for_properties
-0.09s call     tests/test_domain_py.py::test_python_python_use_unqualified_type_names_disabled
-0.09s call     tests/test_domain_py.py::test_python_python_use_unqualified_type_names
+0.11s call     tests/test_domain_py.py::test_python_python_use_unqualified_type_names
+0.11s call     tests/test_domain_py.py::test_python_python_use_unqualified_type_names_disabled
 0.07s call     tests/test_domain_py.py::test_domain_py_xrefs
 0.06s setup    tests/test_domain_py.py::test_parse_annotation
-0.03s setup    tests/test_domain_py.py::test_info_field_list_var
+0.05s setup    tests/test_domain_py.py::test_info_field_list_var
 0.03s setup    tests/test_domain_py.py::test_resolve_xref_for_properties
-0.01s setup    tests/test_domain_py.py::test_domain_py_xrefs_abbreviations
-0.01s setup    tests/test_domain_py.py::test_module_index_not_collapsed
+0.02s setup    tests/test_domain_py.py::test_modindex_common_prefix
+0.02s setup    tests/test_domain_py.py::test_pydecoratormethod_signature
+0.02s setup    tests/test_domain_py.py::test_canonical
+0.02s setup    tests/test_domain_py.py::test_module_index_not_collapsed
+0.02s setup    tests/test_domain_py.py::test_pydecorator_signature
+0.01s setup    tests/test_domain_py.py::test_canonical_definition_skip
+0.01s setup    tests/test_domain_py.py::test_pyfunction_with_union_type_operator
 0.01s setup    tests/test_domain_py.py::test_pyclass_options
 0.01s setup    tests/test_domain_py.py::test_pyobject_prefix
-0.01s setup    tests/test_domain_py.py::test_pyfunction_with_union_type_operator
 0.01s setup    tests/test_domain_py.py::test_pyfunction_signature_full_py38
-0.01s setup    tests/test_domain_py.py::test_pyclassmethod
-0.01s setup    tests/test_domain_py.py::test_noindexentry
-0.01s setup    tests/test_domain_py.py::test_canonical_definition_skip
-0.01s setup    tests/test_domain_py.py::test_pyexception_signature
-0.01s setup    tests/test_domain_py.py::test_modindex_common_prefix
 0.01s setup    tests/test_domain_py.py::test_optional_pyfunction_signature
+0.01s setup    tests/test_domain_py.py::test_noindexentry
+0.01s setup    tests/test_domain_py.py::test_module_index
+0.01s setup    tests/test_domain_py.py::test_domain_py_xrefs_abbreviations
 0.01s setup    tests/test_domain_py.py::test_canonical_duplicated
-0.01s setup    tests/test_domain_py.py::test_canonical_definition_overrides
-0.01s setup    tests/test_domain_py.py::test_pyfunction_with_number_literals
 [36m[1m=========================== short test summary info ============================[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_function_signatures[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_domain_py_xrefs[0m
@@ -1269,10 +1277,10 @@ The dummy builder generates no files.
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_python_python_use_unqualified_type_names_disabled[0m
 [32mPASSED[0m tests/test_domain_py.py::[1mtest_warn_missing_reference[0m
 [31mFAILED[0m tests/test_domain_py.py::[1mtest_info_field_list[0m - AssertionError: The node '[0][0]' is not 'params': <#text: 'str'>
-[31m================== [31m[1m1 failed[0m, [32m44 passed[0m, [33m192 warnings[0m[31m in 1.93s[0m[31m ==================[0m
-py39: exit 1 (2.51 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_domain_py.py pid=81
-  py39: FAIL code 1 (2.53=setup[0.02]+cmd[2.51] seconds)
-  evaluation failed :( (2.60 seconds)
+[31m================== [31m[1m1 failed[0m, [32m44 passed[0m, [33m192 warnings[0m[31m in 2.13s[0m[31m ==================[0m
+py39: exit 1 (2.80 seconds) /testbed> python -X dev -m pytest -rA --durations 25 tests/test_domain_py.py pid=80
+  py39: FAIL code 1 (2.83=setup[0.02]+cmd[2.80] seconds)
+  evaluation failed :( (2.92 seconds)
 + : '>>>>> End Test Output'
 + git checkout 567ff22716ac258b9edd2c1711d766b440ac0b11 tests/test_domain_py.py
 Updated 1 path from a47fb89c6

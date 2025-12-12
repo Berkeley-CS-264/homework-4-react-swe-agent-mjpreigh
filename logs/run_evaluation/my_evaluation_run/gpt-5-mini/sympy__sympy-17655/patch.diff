@@ -1,17 +1,47 @@
-*** Begin Patch
-*** Update File: sympy/geometry/point.py
-@@
-     def __mul__(self, factor):
-@@
-         factor = sympify(factor)
-         coords = [simplify(x*factor) for x in self.args]
-         return Point(coords, evaluate=False)
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 7c978c47be..9635a80228 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -32,6 +32,7 @@
+ from sympy.core.numbers import Float
+ from sympy.core.evaluate import global_evaluate
+ from sympy.core.add import Add
++from sympy.core.mul import Mul
+ from sympy.utilities.iterables import uniq
+ from sympy.utilities.misc import filldedent, func_name, Undecidable
+ 
+@@ -183,7 +184,7 @@ def __abs__(self):
+         return Point.distance(origin, self)
+ 
+     def __add__(self, other):
+-        """Add other to self by incrementing self's coordinates by
++        \"\"\"Add other to self by incrementing self's coordinates by
+         those of other.
+ 
+         Notes
+@@ -212,11 +213,23 @@ def __add__(self, other):
+ 
+         sympy.geometry.point.Point.translate
+ 
+-        """
++        \"\"\"
+         try:
++            # Handle cases where a Mul was produced (e.g., number * Point)
++            # by converting a Mul containing exactly one Point into a scaled Point.
++            if isinstance(other, Mul):
++                # find Point factors inside the Mul
++                point_args = [a for a in other.args if isinstance(a, Point)]
++                if len(point_args) == 1:
++                    pt = point_args[0]
++                    scalar_args = [a for a in other.args if a is not pt]
++                    scalar = Mul(*scalar_args) if scalar_args else S.One
++                    # create a scaled point (uses Point.__mul__)
++                    other = pt * scalar
 +
-+    def __rmul__(self, factor):
-+        """Right multiplication so that scalar * Point works the same
-+        as Point * scalar.
-+        """
-+        return self * factor
-*** End Patch
-
-No changes detected to generate a patch.
+             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+         except TypeError:
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            raise GeometryError(\"Don't know how to add {} and a Point object\".format(other))
+ 
+         coords = [simplify(a + b) for a, b in zip(s, o)]
+         return Point(coords, evaluate=False)

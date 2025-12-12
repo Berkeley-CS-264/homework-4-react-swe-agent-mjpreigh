@@ -88,7 +88,6 @@ class SWEEnvironment:
         """
         cmd = f'cat {file_path}'
         lines = self.run_bash_cmd(cmd)
-        # Calculate 0-indexed positions
 
         line_num = 1
         new_lines = []
@@ -181,21 +180,35 @@ class SWEEnvironment:
     
     def search_files(self, content: str) -> str:
         """
-        Return a list of files which contain the given content string
+        Return a list of files which contain the given content string, and the snippet of code of each instance.
 
         Args:
             content (str): The string to look for in files
 
         Returns:
-            List of file paths containing files where the given string shows up
+            List of file paths containing files where the given string shows up, and the snippet of code of each instance.
         """
 
+        results = []
+
         cmd = f'grep -Rn "{content}" || true'
-        return self.run_bash_cmd(cmd)
+        files = self.run_bash_cmd(cmd)
+        print("files: " + files)
+        for file in files:
+            results.append("-----FILE: {file}-----")
+            lines = self.run_bash_cmd(f'grep "{content}" {file}')
+            print("lines: " + lines)
+            for line in lines:
+                line_text = self.run_bash_cmd(f'sed -n \'{int(line)}p;q\' {file}')
+                print("line text: " + line_text)
+                results.append(f'{line}: {line_text}')
+        results = "\n".join(results)
+        print("results: " + results)
+        return results
     
-    def find_references_in_file(self, file_path: str, content: str):
+    def find_references_in_file(self, file_path: str, content: str) -> str:
         """
-        Return a list of all line numbers and instances in the given file where the given content appears
+        Return a list of all line numbers and instances in the given file where the given content appears. Includes context of line before and after the instance.
 
         Args:
             file_path (str): The file to look in
@@ -203,10 +216,63 @@ class SWEEnvironment:
             content (str): The string to look for in the file
 
         Returns:
-            List of the line numbers and specific text where the content shows up in the file
+            List of the line numbers and specific text where the content shows up in the file.  Includes context of line before and after the instance.
         """
         cmd = f'grep -n "{content}" {file_path}'
         return self.run_bash_cmd(cmd)
+    
+    def run_script(self, script: str) -> str:
+        """
+        Return the results of running the given Python script
+
+        Args:
+            script (str): Python script to run
+
+        Returns:
+            Output from running the given Python script
+        """
+        cmd = f'python3 - << \'PY\'\n{script}'
+        print("to run: " + cmd)
+        return self.run_bash_cmd(cmd)
+
+    def delete_lines(self, file_path: str, from_line: int, to_line: int) -> str:
+        """
+        Delete lines from file between and including from_line and to_line
+
+        Args:
+            file_path (str): File to delete lines from
+
+            from_line (int): First line to delete
+
+            to_line (int): Last linen to delete
+
+
+        Returns:
+            Contents of the file after lines deleted
+        """
+        cmd = f'cat {file_path}'
+        lines = self.run_bash_cmd(cmd)
+        # Calculate 0-indexed positions
+
+        line_num = 1
+        new_lines = []
+        for line in lines.splitlines():
+            if line_num < int(from_line) or line_num > int(to_line):
+                new_lines.append(line)
+            line_num += 1
+
+        print("start new lines")
+        line_num = 1
+        for linen in new_lines:
+            print(linen)
+            cmd = f'echo "{linen}" > {file_path}'
+            if line_num > 1:
+                cmd = f'echo "{linen}" >> {file_path}'
+            self.run_bash_cmd(cmd)
+            line_num += 1
+
+        print("end new lines")
+        return self.show_file(file_path)
 
 class DumbEnvironment:
     """

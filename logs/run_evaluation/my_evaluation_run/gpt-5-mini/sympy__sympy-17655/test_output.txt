@@ -131,79 +131,67 @@ export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
 + git config --global --add safe.directory /testbed
 + cd /testbed
 + git status
-On branch main
+On branch master
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   docs/ref/settings.txt
-	modified:   docs/topics/signing.txt
+	modified:   sympy/geometry/point.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
-commit cd387a2d2f8c8b41f4cd32707e52ef636b76f0b3
+commit 40af1b5136aeb19ac5b1bd00b0ab68c7d7c56b0b
 Author: SWE-bench <setup@swebench.config>
-Date:   Wed Sep 10 13:33:54 2025 +0000
+Date:   Wed Sep 10 16:33:31 2025 +0000
 
     SWE-bench
-+ git -c core.fileMode=false diff 9b224579875e30203d079cc2fee83b116d98eb78
-diff --git a/docs/ref/settings.txt b/docs/ref/settings.txt
-index 41387886c0..4b328ca59c 100644
---- a/docs/ref/settings.txt
-+++ b/docs/ref/settings.txt
-@@ -2301,10 +2301,13 @@ Default: ``[]``
- A list of fallback secret keys for a particular Django installation. These are
- used to allow rotation of the ``SECRET_KEY``.
++ git -c core.fileMode=false diff f5e965947af2410ded92cfad987aaf45262ea434
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 7c978c47be..9635a80228 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -32,6 +32,7 @@
+ from sympy.core.numbers import Float
+ from sympy.core.evaluate import global_evaluate
+ from sympy.core.add import Add
++from sympy.core.mul import Mul
+ from sympy.utilities.iterables import uniq
+ from sympy.utilities.misc import filldedent, func_name, Undecidable
  
--In order to rotate your secret keys, set a new ``SECRET_KEY`` and move the
--previous value to the beginning of ``SECRET_KEY_FALLBACKS``. Then remove the
--old values from the end of the ``SECRET_KEY_FALLBACKS`` when you are ready to
--expire the sessions, password reset tokens, and so on, that make use of them.
-+In order to rotate your secret keys, set a new ``SECRET_KEY`` and add the
-+previous value to ``SECRET_KEY_FALLBACKS``. Django validates signed data by
-+checking the current ``SECRET_KEY`` first and then each value in
-+``SECRET_KEY_FALLBACKS`` in order. To allow old signed data to continue to be
-+validated, include the old key(s) in ``SECRET_KEY_FALLBACKS`` (for example,
-+append them). When you are ready to expire the old signatures, remove the
-+old values from ``SECRET_KEY_FALLBACKS``.
+@@ -183,7 +184,7 @@ def __abs__(self):
+         return Point.distance(origin, self)
  
- .. note::
+     def __add__(self, other):
+-        """Add other to self by incrementing self's coordinates by
++        \"\"\"Add other to self by incrementing self's coordinates by
+         those of other.
  
-diff --git a/docs/topics/signing.txt b/docs/topics/signing.txt
-index eaf1696b2c..2ada3fa0f4 100644
---- a/docs/topics/signing.txt
-+++ b/docs/topics/signing.txt
-@@ -35,8 +35,20 @@ data -- it is vital you keep this secure, or attackers could use it to
- generate their own signed values.
+         Notes
+@@ -212,11 +213,23 @@ def __add__(self, other):
  
- :setting:`SECRET_KEY_FALLBACKS` can be used to rotate secret keys. The
--values will not be used to sign data, but if specified, they will be used to
--validate signed data and must be kept secure.
-+values are not used to sign new data, but are consulted when verifying
-+signatures by the signing framework (for example, the :class:`~Signer`
-+class and :func:`django.core.signing.loads`). Django checks the current
-+:setting:`SECRET_KEY` first, then the values in :setting:`SECRET_KEY_FALLBACKS`
-+in order. Values in :setting:`SECRET_KEY_FALLBACKS` must be kept secure.
+         sympy.geometry.point.Point.translate
+ 
+-        """
++        \"\"\"
+         try:
++            # Handle cases where a Mul was produced (e.g., number * Point)
++            # by converting a Mul containing exactly one Point into a scaled Point.
++            if isinstance(other, Mul):
++                # find Point factors inside the Mul
++                point_args = [a for a in other.args if isinstance(a, Point)]
++                if len(point_args) == 1:
++                    pt = point_args[0]
++                    scalar_args = [a for a in other.args if a is not pt]
++                    scalar = Mul(*scalar_args) if scalar_args else S.One
++                    # create a scaled point (uses Point.__mul__)
++                    other = pt * scalar
 +
-+Note: Some lower-level functions call :func:`django.utils.crypto.salted_hmac`
-+without passing an explicit ``secret`` argument. Those calls use
-+:setting:`SECRET_KEY` directly and do not consult
-+:setting:`SECRET_KEY_FALLBACKS`. For example,
-+:meth:`~django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash`
-+uses :func:`salted_hmac` without an explicit secret, so rotating
-+:setting:`SECRET_KEY` will invalidate existing session authentication hashes
-+even if the old key is present in :setting:`SECRET_KEY_FALLBACKS`.
+             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+         except TypeError:
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            raise GeometryError(\"Don't know how to add {} and a Point object\".format(other))
  
- Using the low-level API
- =======================
-@@ -119,6 +131,8 @@ generate signatures. You can use a different secret by passing it to the
-     :py:mod:`hashlib`, it defaults to ``'sha256'``. ``fallback_keys`` is a list
-     of additional values used to validate signed data, defaults to
-     :setting:`SECRET_KEY_FALLBACKS`.
-+    When verifying signatures, the signer checks the primary key first and then each
-+    value in ``fallback_keys`` in the order provided.
- 
-     .. deprecated:: 4.2
- 
+         coords = [simplify(a + b) for a, b in zip(s, o)]
+         return Point(coords, evaluate=False)
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -330,114 +318,37 @@ export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
 + hash -r
 + python -m pip install -e .
 Obtaining file:///testbed
-  Installing build dependencies: started
-  Installing build dependencies: finished with status 'done'
-  Checking if build backend supports build_editable: started
-  Checking if build backend supports build_editable: finished with status 'done'
-  Getting requirements to build editable: started
-  Getting requirements to build editable: finished with status 'done'
-  Preparing editable metadata (pyproject.toml): started
-  Preparing editable metadata (pyproject.toml): finished with status 'done'
-Requirement already satisfied: asgiref>=3.6.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20250910133354) (3.8.1)
-Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20250910133354) (0.5.1)
-Building wheels for collected packages: Django
-  Building editable for Django (pyproject.toml): started
-  Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-5.0.dev20250910133354-0.editable-py3-none-any.whl size=27433 sha256=8d631fcf1cb9634ad3032834446161627fb1df75be727abeef90681e9480e04a
-  Stored in directory: /tmp/pip-ephem-wheel-cache-mmjcxbo4/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
-Successfully built Django
-Installing collected packages: Django
-  Attempting uninstall: Django
-    Found existing installation: Django 5.0.dev20230308085325
-    Uninstalling Django-5.0.dev20230308085325:
-      Successfully uninstalled Django-5.0.dev20230308085325
-Successfully installed Django-5.0.dev20250910133354
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.5.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.5.dev0
+    Uninstalling sympy-1.5.dev0:
+      Successfully uninstalled sympy-1.5.dev0
+  DEPRECATION: Legacy editable install of sympy==1.5.dev0 from file:///testbed (setup.py develop) is deprecated. pip 25.0 will enforce this behaviour change. A possible replacement is to add a pyproject.toml or enable --use-pep517, and use setuptools >= 64. If the resulting installation is not behaving as expected, try using --config-settings editable_mode=compat. Please consult the setuptools documentation for more information. Discussion can be found at https://github.com/pypa/pip/issues/11457
+  Running setup.py develop for sympy
+Successfully installed sympy
 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-+ git checkout 9b224579875e30203d079cc2fee83b116d98eb78 tests/auth_tests/test_basic.py
-Updated 0 paths from 2c94f6eb06
++ git checkout f5e965947af2410ded92cfad987aaf45262ea434 sympy/geometry/tests/test_point.py
+Updated 0 paths from 0389123d3e
 + git apply -v -
-Checking patch tests/auth_tests/test_basic.py...
-Applied patch tests/auth_tests/test_basic.py cleanly.
+Checking patch sympy/geometry/tests/test_point.py...
+Applied patch sympy/geometry/tests/test_point.py cleanly.
 + : '>>>>> Start Test Output'
-+ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 auth_tests.test_basic
-Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
-Testing against Django installed in '/testbed/django'
-Importing application auth_tests
-Found 13 test(s).
-Skipping setup of unused database(s): other.
-Operations to perform:
-  Synchronize unmigrated apps: auth, auth_tests, contenttypes, messages, sessions, staticfiles
-  Apply all migrations: admin, sites
-Synchronizing apps without migrations:
-  Creating tables...
-    Creating table django_content_type
-    Creating table auth_permission
-    Creating table auth_group
-    Creating table auth_user
-    Creating table django_session
-    Creating table auth_tests_customuser
-    Creating table auth_tests_customuserwithoutisactivefield
-    Creating table auth_tests_extensionuser
-    Creating table auth_tests_custompermissionsuser
-    Creating table auth_tests_customusernonuniqueusername
-    Creating table auth_tests_isactivetestuser1
-    Creating table auth_tests_minimaluser
-    Creating table auth_tests_nopassworduser
-    Creating table auth_tests_concrete
-    Creating table auth_tests_uuiduser
-    Creating table auth_tests_customemailfield
-    Creating table auth_tests_email
-    Creating table auth_tests_customuserwithfk
-    Creating table auth_tests_integerusernameuser
-    Creating table auth_tests_userwithdisabledlastloginfield
-    Creating table auth_tests_organization
-    Creating table auth_tests_customuserwithm2m
-    Creating table auth_tests_customuserwithm2mthrough
-    Creating table auth_tests_membership
-    Creating table auth_tests_customuserwithuniqueconstraint
-    Running deferred SQL...
-Running migrations:
-  Applying admin.0001_initial... OK
-  Applying admin.0002_logentry_remove_auto_add... OK
-  Applying admin.0003_logentry_add_action_flag_choices... OK
-  Applying sites.0001_initial... OK
-  Applying sites.0002_alter_domain_unique... OK
-System check identified no issues (0 silenced).
-test_get_user_model (auth_tests.test_basic.BasicTestCase.test_get_user_model)
-The current user model can be retrieved ... ok
-test_superuser (auth_tests.test_basic.BasicTestCase.test_superuser)
-Check the creation and properties of a superuser ... ok
-test_superuser_no_email_or_password (auth_tests.test_basic.BasicTestCase.test_superuser_no_email_or_password) ... ok
-test_swappable_user (auth_tests.test_basic.BasicTestCase.test_swappable_user)
-The current user model can be swapped out for another ... ok
-test_swappable_user_bad_setting (auth_tests.test_basic.BasicTestCase.test_swappable_user_bad_setting)
-The alternate user setting must point to something in the format app.model ... ok
-test_swappable_user_nonexistent_model (auth_tests.test_basic.BasicTestCase.test_swappable_user_nonexistent_model)
-The current user model must point to an installed model ... ok
-test_unicode_username (auth_tests.test_basic.BasicTestCase.test_unicode_username) ... ok
-test_user (auth_tests.test_basic.BasicTestCase.test_user)
-Users can be created and can set their password ... ok
-test_user_no_email (auth_tests.test_basic.BasicTestCase.test_user_no_email)
-Users can be created without an email ... ok
-test_user_verbose_names_translatable (auth_tests.test_basic.BasicTestCase.test_user_verbose_names_translatable)
-Default User model verbose names are translatable (#19945) ... ok
-test_get_user (auth_tests.test_basic.TestGetUser.test_get_user) ... ok
-test_get_user_anonymous (auth_tests.test_basic.TestGetUser.test_get_user_anonymous) ... ok
-test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_fallback_secret) ... FAIL
-
-======================================================================
-FAIL: test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_fallback_secret)
-----------------------------------------------------------------------
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/geometry/tests/test_point.py
 Traceback (most recent call last):
-  File "/testbed/tests/auth_tests/test_basic.py", line 156, in test_get_user_fallback_secret
-    self.assertIsInstance(user, User)
-AssertionError: <django.contrib.auth.models.AnonymousUser object at 0x7ffffcf27f10> is not an instance of <class 'django.contrib.auth.models.User'>
-
-----------------------------------------------------------------------
-Ran 13 tests in 0.133s
-
-FAILED (failures=1)
-Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+  File "/testbed/bin/test", line 105, in <module>
+    import sympy
+  File "/testbed/sympy/__init__.py", line 70, in <module>
+    from .geometry import *
+  File "/testbed/sympy/geometry/__init__.py", line 13, in <module>
+    from sympy.geometry.point import Point, Point2D, Point3D
+  File "/testbed/sympy/geometry/point.py", line 187
+    \"\"\"Add other to self by incrementing self's coordinates by
+     ^
+SyntaxError: unexpected character after line continuation character
 + : '>>>>> End Test Output'
-+ git checkout 9b224579875e30203d079cc2fee83b116d98eb78 tests/auth_tests/test_basic.py
-Updated 1 path from 2c94f6eb06
++ git checkout f5e965947af2410ded92cfad987aaf45262ea434 sympy/geometry/tests/test_point.py
+Updated 1 path from 0389123d3e

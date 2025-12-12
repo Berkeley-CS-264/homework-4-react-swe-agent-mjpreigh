@@ -1,22 +1,29 @@
-diff --git a/django/forms/widgets.py b/django/forms/widgets.py
-index 40ac1d3162..9a54075628 100644
---- a/django/forms/widgets.py
-+++ b/django/forms/widgets.py
-@@ -600,9 +600,16 @@ class ChoiceWidget(Widget):
-             groups.append((group_name, subgroup, index))
+diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py
+index f269d9e17f..479c7695c6 100644
+--- a/django/db/models/fields/related.py
++++ b/django/db/models/fields/related.py
+@@ -415,6 +415,24 @@ class RelatedField(FieldCacheMixin, Field):
+             defaults.update({
+                 'limit_choices_to': limit_choices_to,
+             })
++
++        # If the model field is not blank and the widget is a RadioSelect,
++        # avoid providing an empty_label to the ModelChoiceField. RadioSelect
++        # has an inherent unfilled state and showing a "---------" choice
++        # makes that blank option look like a valid choice for required fields.
++        # Respect an explicit empty_label in kwargs if provided.
++        widget = kwargs.get('widget')
++        if widget is None and 'widget' in defaults:
++            widget = defaults['widget']
++
++        if ('empty_label' not in kwargs) and (not self.blank):
++            try:
++                from django.forms import RadioSelect
++            except Exception:
++                RadioSelect = None
++            if RadioSelect is not None and isinstance(widget, RadioSelect):
++                defaults['empty_label'] = None
++
+         defaults.update(kwargs)
+         return super().formfield(**defaults)
  
-             for subvalue, sublabel in choices:
-+                # Don't select the empty choice for radio widgets when the field
-+                # is required and no value has been provided. RadioSelect has an
-+                # inherent unfilled state so showing "---------" as checked is
-+                # confusing for required fields.
-+                empty_choice = (subvalue is None or subvalue == '')
-+                no_value_selected = (value == [''])
-                 selected = (
-                     str(subvalue) in value and
--                    (not has_selected or self.allow_multiple_selected)
-+                    (not has_selected or self.allow_multiple_selected) and
-+                    not (self.input_type == 'radio' and self.is_required and empty_choice and no_value_selected)
-                 )
-                 has_selected |= selected
-                 subgroup.append(self.create_option(

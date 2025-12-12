@@ -146,39 +146,64 @@ Date:   Wed Sep 10 11:44:44 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 179ee13eb37348cd87169a198aec18fedccc8668
 diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
-index 494890cc23..732f2c3c2a 100644
+index 494890cc23..d30ba81cef 100644
 --- a/django/contrib/staticfiles/storage.py
 +++ b/django/contrib/staticfiles/storage.py
-@@ -226,17 +226,26 @@ class HashedFilesMixin:
+@@ -226,17 +226,43 @@ class HashedFilesMixin:
              path for path in paths
              if matches_patterns(path, self._patterns)
          ]
 +
-+        # Track which original names we've yielded to avoid duplicate yields
-+        yielded_names = set()
++        # Track which original file names have been yielded so we don't yield
++        # the same original filename multiple times across multiple passes.
++        yielded = set()
 +
          # Do a single pass first. Post-process all files once, then repeat for
 -        # adjustable files.
-+        # adjustable files. Only yield a file when it is actually processed and
-+        # hasn't been yielded before.
++        # adjustable files. For adjustable files, we want to avoid yielding them
++        # during this initial pass to prevent duplicates, but still process them
++        # so their hashes are known for subsequent passes. Exceptions should be
++        # yielded immediately so callers can react to errors.
          for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
 -            yield name, hashed_name, processed
-+            if processed and name not in yielded_names:
++            # If an exception occurred during processing, yield it immediately.
++            if isinstance(processed, Exception):
 +                yield name, hashed_name, processed
-+                yielded_names.add(name)
++                yielded.add(name)
++                continue
++            # Only yield non-adjustable files on the first pass.
++            if name not in adjustable_paths:
++                yield name, hashed_name, processed
++                yielded.add(name)
  
++        # Restrict to adjustable files only for subsequent passes.
          paths = {path: paths[path] for path in adjustable_paths}
  
          for i in range(self.max_post_process_passes):
              substitutions = False
              for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
 -                yield name, hashed_name, processed
-+                if processed and name not in yielded_names:
-+                    yield name, hashed_name, processed
-+                    yielded_names.add(name)
++                # If an exception occurred, yield it (unless already yielded).
++                if isinstance(processed, Exception):
++                    if name not in yielded:
++                        yield name, hashed_name, processed
++                        yielded.add(name)
++                else:
++                    # Only yield a given original filename once.
++                    if name not in yielded:
++                        yield name, hashed_name, processed
++                        yielded.add(name)
                  substitutions = substitutions or subst
  
              if not substitutions:
+@@ -247,7 +273,6 @@ class HashedFilesMixin:
+ 
+         # Store the processed paths
+         self.hashed_files.update(hashed_files)
+-
+     def _post_process(self, paths, adjustable_paths, hashed_files):
+         # Sort the files by directory level
+         def path_level(name):
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -320,8 +345,8 @@ Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/test
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-4.0-0.editable-py3-none-any.whl size=25589 sha256=da904192c9f8380cb988b42c7646ee7778630e07e24cd0d66793ad174eaf257a
-  Stored in directory: /tmp/pip-ephem-wheel-cache-zh5douhh/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+  Created wheel for Django: filename=django-4.0-0.editable-py3-none-any.whl size=25589 sha256=fb263b79048ec3de8103fa06211fc4769dd119e14a4c838712e405531e29a5ff
+  Stored in directory: /tmp/pip-ephem-wheel-cache-8lgbje3_/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -380,7 +405,7 @@ test_collect_static_files_permissions (staticfiles_tests.test_storage.TestStatic
 test_collect_static_files_subclass_of_static_storage (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
 
 ----------------------------------------------------------------------
-Ran 32 tests in 0.395s
+Ran 32 tests in 0.414s
 
 OK
 + : '>>>>> End Test Output'

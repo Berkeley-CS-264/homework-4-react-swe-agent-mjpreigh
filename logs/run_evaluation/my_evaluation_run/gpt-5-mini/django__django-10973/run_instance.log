@@ -1,14 +1,14 @@
-2025-12-11 22:17:21,883 - INFO - Creating container for django__django-10973...
-2025-12-11 22:17:21,925 - INFO - Container for django__django-10973 created: 3ccf86ddb337b8d44720697b4759796436c21d0b3c3208ae757ab71d448e4f9c
-2025-12-11 22:17:22,040 - INFO - Container for django__django-10973 started: 3ccf86ddb337b8d44720697b4759796436c21d0b3c3208ae757ab71d448e4f9c
-2025-12-11 22:17:22,041 - INFO - Intermediate patch for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/patch.diff, now applying to container...
-2025-12-11 22:17:22,203 - INFO - >>>>> Applied Patch:
+2025-12-12 09:28:14,526 - INFO - Creating container for django__django-10973...
+2025-12-12 09:28:14,614 - INFO - Container for django__django-10973 created: 45fe2212403c4556bc404ac9381a9aeec84365f720964fffa3bb9de5274cb5bc
+2025-12-12 09:28:14,735 - INFO - Container for django__django-10973 started: 45fe2212403c4556bc404ac9381a9aeec84365f720964fffa3bb9de5274cb5bc
+2025-12-12 09:28:14,736 - INFO - Intermediate patch for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/patch.diff, now applying to container...
+2025-12-12 09:28:14,851 - INFO - >>>>> Applied Patch:
 Checking patch django/db/backends/postgresql/client.py...
 Applied patch django/db/backends/postgresql/client.py cleanly.
 
-2025-12-11 22:17:22,651 - INFO - Git diff before:
+2025-12-12 09:28:15,655 - INFO - Git diff before:
 diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
-index 7fca6eff30..b16f12b52b 100644
+index 7fca6eff30..a1724dd48f 100644
 --- a/django/db/backends/postgresql/client.py
 +++ b/django/db/backends/postgresql/client.py
 @@ -2,17 +2,9 @@ import os
@@ -35,12 +35,15 @@ index 7fca6eff30..b16f12b52b 100644
  
 -        temp_pgpass = None
          sigint_handler = signal.getsignal(signal.SIGINT)
-+        # Prepare environment for subprocess.
-+        env = os.environ.copy()
          try:
++            env = os.environ.copy()
              if passwd:
 -                # Create temporary .pgpass file.
 -                temp_pgpass = NamedTemporaryFile(mode='w+')
++                # Set PGPASSWORD in the child process environment to avoid
++                # creating a temporary .pgpass file. If the current locale
++                # can't encode the password, let the user input the password
++                # manually.
                  try:
 -                    print(
 -                        _escape_pgpass(host) or '*',
@@ -53,11 +56,10 @@ index 7fca6eff30..b16f12b52b 100644
 -                        flush=True,
 -                    )
 -                    os.environ['PGPASSFILE'] = temp_pgpass.name
-+                    # Use PGPASSWORD to avoid creating a temporary .pgpass file.
 +                    env['PGPASSWORD'] = passwd
                  except UnicodeEncodeError:
-                     # If the current locale can't encode the data, let the
-                     # user input the password manually.
+-                    # If the current locale can't encode the data, let the
+-                    # user input the password manually.
                      pass
              # Allow SIGINT to pass to psql to abort queries.
              signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -73,12 +75,12 @@ index 7fca6eff30..b16f12b52b 100644
  
      def runshell(self):
          DatabaseClient.runshell_db(self.connection.get_connection_params())
-2025-12-11 22:17:22,652 - INFO - Eval script for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/eval.sh; copying to container...
-2025-12-11 22:17:35,020 - INFO - Test runtime: 12.30 seconds
-2025-12-11 22:17:35,020 - INFO - Test output for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/test_output.txt
-2025-12-11 22:17:35,115 - INFO - Git diff after:
+2025-12-12 09:28:15,656 - INFO - Eval script for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/eval.sh; copying to container...
+2025-12-12 09:28:27,306 - INFO - Test runtime: 11.59 seconds
+2025-12-12 09:28:27,307 - INFO - Test output for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/test_output.txt
+2025-12-12 09:28:27,408 - INFO - Git diff after:
 diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
-index 7fca6eff30..b16f12b52b 100644
+index 7fca6eff30..a1724dd48f 100644
 --- a/django/db/backends/postgresql/client.py
 +++ b/django/db/backends/postgresql/client.py
 @@ -2,17 +2,9 @@ import os
@@ -105,12 +107,15 @@ index 7fca6eff30..b16f12b52b 100644
  
 -        temp_pgpass = None
          sigint_handler = signal.getsignal(signal.SIGINT)
-+        # Prepare environment for subprocess.
-+        env = os.environ.copy()
          try:
++            env = os.environ.copy()
              if passwd:
 -                # Create temporary .pgpass file.
 -                temp_pgpass = NamedTemporaryFile(mode='w+')
++                # Set PGPASSWORD in the child process environment to avoid
++                # creating a temporary .pgpass file. If the current locale
++                # can't encode the password, let the user input the password
++                # manually.
                  try:
 -                    print(
 -                        _escape_pgpass(host) or '*',
@@ -123,11 +128,10 @@ index 7fca6eff30..b16f12b52b 100644
 -                        flush=True,
 -                    )
 -                    os.environ['PGPASSFILE'] = temp_pgpass.name
-+                    # Use PGPASSWORD to avoid creating a temporary .pgpass file.
 +                    env['PGPASSWORD'] = passwd
                  except UnicodeEncodeError:
-                     # If the current locale can't encode the data, let the
-                     # user input the password manually.
+-                    # If the current locale can't encode the data, let the
+-                    # user input the password manually.
                      pass
              # Allow SIGINT to pass to psql to abort queries.
              signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -143,9 +147,9 @@ index 7fca6eff30..b16f12b52b 100644
  
      def runshell(self):
          DatabaseClient.runshell_db(self.connection.get_connection_params())
-2025-12-11 22:17:35,115 - INFO - Grading answer for django__django-10973...
-2025-12-11 22:17:35,115 - INFO - report: {'django__django-10973': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_accent (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_basic (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_column (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_nopass (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'SIGINT is ignored in Python and passed to psql to abort quries.'], 'failure': []}, 'PASS_TO_PASS': {'success': [], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+2025-12-12 09:28:27,408 - INFO - Grading answer for django__django-10973...
+2025-12-12 09:28:27,409 - INFO - report: {'django__django-10973': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_accent (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_basic (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_column (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_nopass (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'SIGINT is ignored in Python and passed to psql to abort quries.'], 'failure': []}, 'PASS_TO_PASS': {'success': [], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for django__django-10973: resolved: True
-2025-12-11 22:17:35,115 - INFO - Attempting to stop container sweb.eval.django__django-10973.my_evaluation_run...
-2025-12-11 22:17:50,324 - INFO - Attempting to remove container sweb.eval.django__django-10973.my_evaluation_run...
-2025-12-11 22:17:50,338 - INFO - Container sweb.eval.django__django-10973.my_evaluation_run removed.
+2025-12-12 09:28:27,409 - INFO - Attempting to stop container sweb.eval.django__django-10973.my_evaluation_run...
+2025-12-12 09:28:42,655 - INFO - Attempting to remove container sweb.eval.django__django-10973.my_evaluation_run...
+2025-12-12 09:28:42,668 - INFO - Container sweb.eval.django__django-10973.my_evaluation_run removed.

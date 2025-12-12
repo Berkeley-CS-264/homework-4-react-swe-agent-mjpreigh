@@ -146,19 +146,22 @@ Date:   Wed Sep 10 15:12:12 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 7f7a36478abe7dd1fa993b115d22606aa0e35e88
 diff --git a/src/_pytest/skipping.py b/src/_pytest/skipping.py
-index 335e10996..165e76124 100644
+index 335e10996..065049607 100644
 --- a/src/_pytest/skipping.py
 +++ b/src/_pytest/skipping.py
-@@ -247,6 +247,9 @@ def pytest_runtest_setup(item: Item) -> None:
- @hookimpl(hookwrapper=True)
- def pytest_runtest_call(item: Item) -> Generator[None, None, None]:
+@@ -262,6 +262,12 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
+     outcome = yield
+     rep = outcome.get_result()
      xfailed = item._store.get(xfailed_key, None)
-+    if xfailed is None:
-+        # Re-evaluate xfail marks in case they were added during the call phase
-+        item._store[xfailed_key] = xfailed = evaluate_xfail_marks(item)
-     if xfailed is None:
-         item._store[xfailed_key] = xfailed = evaluate_xfail_marks(item)
- 
++    # Re-evaluate xfail marks for the call phase to pick up markers that
++    # may have been added during test execution (e.g. request.node.add_marker).
++    # This ensures dynamically applied xfail markers are respected in reporting.
++    if not item.config.option.runxfail and rep.when == "call":
++        xfailed = evaluate_xfail_marks(item)
++        item._store[xfailed_key] = xfailed
+     # unittest special case, see setting of unexpectedsuccess_key
+     if unexpectedsuccess_key in item._store and rep.when == "call":
+         reason = item._store[unexpectedsuccess_key]
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -303,8 +306,8 @@ Requirement already satisfied: toml in /opt/miniconda3/envs/testbed/lib/python3.
 Building wheels for collected packages: pytest
   Building editable for pytest (pyproject.toml): started
   Building editable for pytest (pyproject.toml): finished with status 'done'
-  Created wheel for pytest: filename=pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212-0.editable-py3-none-any.whl size=5338 sha256=ff418323ff12245a81359e02e7f63b5b24ea54425d38c587980519985e1c8001
-  Stored in directory: /tmp/pip-ephem-wheel-cache-l0pz429c/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+  Created wheel for pytest: filename=pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212-0.editable-py3-none-any.whl size=5338 sha256=e9566667a7835000ef64c9b78af060edb0669cc829d9b36d6f831da92baf3f46
+  Stored in directory: /tmp/pip-ephem-wheel-cache-8swsefdw/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
 Successfully built pytest
 Installing collected packages: pytest
   Attempting uninstall: pytest
@@ -325,92 +328,9 @@ platform linux -- Python 3.9.20, pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212, py-
 rootdir: /testbed, configfile: pyproject.toml
 collected 81 items
 
-testing/test_skipping.py ............................FF................. [ 58%]
+testing/test_skipping.py ............................................... [ 58%]
 ..................................                                       [100%]
 
-=================================== FAILURES ===================================
-____________ TestXFail.test_dynamic_xfail_set_during_runtest_failed ____________
-
-self = <test_skipping.TestXFail object at 0x7ffffdaf7400>
-testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_dynamic_xfail_set_during_runtest_failed0')>
-
-    def test_dynamic_xfail_set_during_runtest_failed(self, testdir: Testdir) -> None:
-        # Issue #7486.
-        p = testdir.makepyfile(
-            """
-            import pytest
-            def test_this(request):
-                request.node.add_marker(pytest.mark.xfail(reason="xfail"))
-                assert 0
-        """
-        )
-        result = testdir.runpytest(p)
->       result.assert_outcomes(xfailed=1)
-E       AssertionError: assert {'errors': 0,...pped': 0, ...} == {'errors': 0,...pped': 0, ...}
-E         Omitting 4 identical items, use -vv to show
-E         Differing items:
-E         {'xfailed': 0} != {'xfailed': 1}
-E         {'failed': 1} != {'failed': 0}
-E         Use -v to get the full diff
-
-/testbed/testing/test_skipping.py:440: AssertionError
------------------------------ Captured stdout call -----------------------------
-============================= test session starts ==============================
-platform linux -- Python 3.9.20, pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212, py-1.11.0, pluggy-0.13.1
-rootdir: /tmp/pytest-of-root/pytest-0/test_dynamic_xfail_set_during_runtest_failed0
-collected 1 item
-
-test_dynamic_xfail_set_during_runtest_failed.py F                        [100%]
-
-=================================== FAILURES ===================================
-__________________________________ test_this ___________________________________
-
-request = <FixtureRequest for <Function test_this>>
-
-    def test_this(request):
-        request.node.add_marker(pytest.mark.xfail(reason="xfail"))
->       assert 0
-E       assert 0
-
-test_dynamic_xfail_set_during_runtest_failed.py:4: AssertionError
-=========================== short test summary info ============================
-FAILED test_dynamic_xfail_set_during_runtest_failed.py::test_this - assert 0
-============================== 1 failed in 0.00s ===============================
-________ TestXFail.test_dynamic_xfail_set_during_runtest_passed_strict _________
-
-self = <test_skipping.TestXFail object at 0x7ffffda569a0>
-testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_dynamic_xfail_set_during_runtest_passed_strict0')>
-
-    def test_dynamic_xfail_set_during_runtest_passed_strict(
-        self, testdir: Testdir
-    ) -> None:
-        # Issue #7486.
-        p = testdir.makepyfile(
-            """
-            import pytest
-            def test_this(request):
-                request.node.add_marker(pytest.mark.xfail(reason="xfail", strict=True))
-        """
-        )
-        result = testdir.runpytest(p)
->       result.assert_outcomes(failed=1)
-E       AssertionError: assert {'errors': 0,...pped': 0, ...} == {'errors': 0,...pped': 0, ...}
-E         Omitting 4 identical items, use -vv to show
-E         Differing items:
-E         {'failed': 0} != {'failed': 1}
-E         {'passed': 1} != {'passed': 0}
-E         Use -v to get the full diff
-
-/testbed/testing/test_skipping.py:454: AssertionError
------------------------------ Captured stdout call -----------------------------
-============================= test session starts ==============================
-platform linux -- Python 3.9.20, pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212, py-1.11.0, pluggy-0.13.1
-rootdir: /tmp/pytest-of-root/pytest-0/test_dynamic_xfail_set_during_runtest_passed_strict0
-collected 1 item
-
-test_dynamic_xfail_set_during_runtest_passed_strict.py .                 [100%]
-
-============================== 1 passed in 0.00s ===============================
 ==================================== PASSES ====================================
 ________________________ TestEvaluation.test_no_marker _________________________
 ----------------------------- Captured stdout call -----------------------------
@@ -558,7 +478,7 @@ E       assert 0
 test_xfail_run_anyway.py:4: AssertionError
 =========================== short test summary info ============================
 FAILED test_xfail_run_anyway.py::test_func - assert 0
-========================= 1 failed, 1 passed in 0.00s ==========================
+========================= 1 failed, 1 passed in 0.01s ==========================
 ________ TestXFail.test_xfail_run_with_skip_mark[test_input0-expected0] ________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -582,7 +502,7 @@ test_sample.py s                                                         [100%]
 
 =========================== short test summary info ============================
 SKIPPED [1] test_sample.py:2: unconditional skip
-============================== 1 skipped in 0.00s ==============================
+============================== 1 skipped in 0.01s ==============================
 ___________________ TestXFail.test_xfail_evalfalse_but_fails ___________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -601,7 +521,7 @@ collecting ... collected 1 item
 
 test_one.py::test_this XFAIL                                             [100%]
 
-============================== 1 xfailed in 0.00s ==============================
+============================== 1 xfailed in 0.01s ==============================
 _________________ TestXFail.test_xfail_not_run_xfail_reporting _________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -629,7 +549,7 @@ test_one.py x                                                            [100%]
 =========================== short test summary info ============================
 XFAIL test_one.py::test_this
   reason: [NOTRUN] hello
-============================== 1 xfailed in 0.02s ==============================
+============================== 1 xfailed in 0.03s ==============================
 __________________________ TestXFail.test_xfail_xpass __________________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -680,7 +600,7 @@ collected 1 item
 
 test_xfail_imperative_in_setup_function.py x                             [100%]
 
-============================== 1 xfailed in 0.00s ==============================
+============================== 1 xfailed in 0.01s ==============================
 ============================= test session starts ==============================
 platform linux -- Python 3.9.20, pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212, py-1.11.0, pluggy-0.13.1
 rootdir: /tmp/pytest-of-root/pytest-0/test_xfail_imperative_in_setup_function0
@@ -691,7 +611,7 @@ test_xfail_imperative_in_setup_function.py x                             [100%]
 =========================== short test summary info ============================
 XFAIL test_xfail_imperative_in_setup_function.py::test_this
   reason: hello
-============================== 1 xfailed in 0.00s ==============================
+============================== 1 xfailed in 0.01s ==============================
 ============================= test session starts ==============================
 platform linux -- Python 3.9.20, pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212, py-1.11.0, pluggy-0.13.1
 rootdir: /tmp/pytest-of-root/pytest-0/test_xfail_imperative_in_setup_function0
@@ -732,7 +652,32 @@ collected 1 item
 
 test_dynamic_xfail_set_during_funcarg_setup.py x                         [100%]
 
-============================== 1 xfailed in 0.01s ==============================
+============================== 1 xfailed in 0.00s ==============================
+____________ TestXFail.test_dynamic_xfail_set_during_runtest_failed ____________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.20, pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212, py-1.11.0, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_dynamic_xfail_set_during_runtest_failed0
+collected 1 item
+
+test_dynamic_xfail_set_during_runtest_failed.py x                        [100%]
+
+============================== 1 xfailed in 0.00s ==============================
+________ TestXFail.test_dynamic_xfail_set_during_runtest_passed_strict _________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.20, pytest-6.0.0rc2.dev34+gcd4beeff4.d20251212, py-1.11.0, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_dynamic_xfail_set_during_runtest_passed_strict0
+collected 1 item
+
+test_dynamic_xfail_set_during_runtest_passed_strict.py F                 [100%]
+
+=================================== FAILURES ===================================
+__________________________________ test_this ___________________________________
+[XPASS(strict)] xfail
+=========================== short test summary info ============================
+FAILED test_dynamic_xfail_set_during_runtest_passed_strict.py::test_this
+============================== 1 failed in 0.00s ===============================
 _________ TestXFail.test_xfail_raises[TypeError-TypeError-*1 xfailed*] _________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -794,7 +739,7 @@ E       IndexError
 test_xfail_raises.py:4: IndexError
 =========================== short test summary info ============================
 FAILED test_xfail_raises.py::test_raises - IndexError
-============================== 1 failed in 0.01s ===============================
+============================== 1 failed in 0.00s ===============================
 _________________________ TestXFail.test_strict_sanity _________________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -832,7 +777,7 @@ test_strict_xfail.py X                                                   [100%]
 
 =========================== short test summary info ============================
 XPASS test_strict_xfail.py::test_foo unsupported feature
-============================== 1 xpassed in 0.01s ==============================
+============================== 1 xpassed in 0.00s ==============================
 _________________ TestXFail.test_strict_xfail_condition[True] __________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -917,7 +862,7 @@ collected 1 item
 
 test_failing_teardown_issue9.py Xx                                       [100%]
 
-======================== 1 xfailed, 1 xpassed in 0.02s =========================
+======================== 1 xfailed, 1 xpassed in 0.00s =========================
 ___________________________ TestSkip.test_skip_class ___________________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -1233,7 +1178,7 @@ SyntaxError: invalid syntax
 =========================== short test summary info ============================
 ERROR test_errors_in_xfail_skip_expressions.py::test_nameerror
 ERROR test_errors_in_xfail_skip_expressions.py::test_syntax
-========================= 1 passed, 2 errors in 0.00s ==========================
+========================= 1 passed, 2 errors in 0.01s ==========================
 ________________________ test_xfail_skipif_with_globals ________________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -1288,7 +1233,7 @@ test_imperativeskip_on_xfail_test.py ss                                  [100%]
 =========================== short test summary info ============================
 SKIPPED [1] conftest.py:3: abc
 SKIPPED [1] test_imperativeskip_on_xfail_test.py:6: condition: True
-============================== 2 skipped in 0.00s ==============================
+============================== 2 skipped in 0.01s ==============================
 _______________________ TestBooleanCondition.test_skipif _______________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -1341,7 +1286,7 @@ conftest.py:9
     return MyItem("foo", parent)
 
 -- Docs: https://docs.pytest.org/en/stable/warnings.html
-======================== 1 xfailed, 1 warning in 0.02s =========================
+======================== 1 xfailed, 1 warning in 0.03s =========================
 _________________________ test_module_level_skip_error _________________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -1381,7 +1326,7 @@ E   TypeError: skip() got an unexpected keyword argument 'unknown'
 =========================== short test summary info ============================
 ERROR test_invalid_skip_keyword_parameter.py - TypeError: skip() got an unexp...
 !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
-=============================== 1 error in 0.04s ===============================
+=============================== 1 error in 0.03s ===============================
 _____________________________ test_mark_xfail_item _____________________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -1418,7 +1363,7 @@ E       assert 0
 test_summary_list_after_errors.py:3: AssertionError
 =========================== short test summary info ============================
 FAILED test_summary_list_after_errors.py::test_fail - assert 0
-============================== 1 failed in 0.07s ===============================
+============================== 1 failed in 0.00s ===============================
 _____________________________ test_relpath_rootdir _____________________________
 ----------------------------- Captured stdout call -----------------------------
 ============================= test session starts ==============================
@@ -1460,6 +1405,8 @@ PASSED testing/test_skipping.py::TestXFail::test_xfail_imperative
 PASSED testing/test_skipping.py::TestXFail::test_xfail_imperative_in_setup_function
 PASSED testing/test_skipping.py::TestXFail::test_dynamic_xfail_no_run
 PASSED testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_funcarg_setup
+PASSED testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_failed
+PASSED testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_passed_strict
 PASSED testing/test_skipping.py::TestXFail::test_xfail_raises[TypeError-TypeError-*1 xfailed*]
 PASSED testing/test_skipping.py::TestXFail::test_xfail_raises[(AttributeError, TypeError)-TypeError-*1 xfailed*]
 PASSED testing/test_skipping.py::TestXFail::test_xfail_raises[TypeError-IndexError-*1 failed*]
@@ -1511,9 +1458,7 @@ PASSED testing/test_skipping.py::test_invalid_skip_keyword_parameter
 PASSED testing/test_skipping.py::test_mark_xfail_item
 PASSED testing/test_skipping.py::test_summary_list_after_errors
 PASSED testing/test_skipping.py::test_relpath_rootdir
-FAILED testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_failed
-FAILED testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_passed_strict
-========================= 2 failed, 79 passed in 1.56s =========================
+============================== 81 passed in 1.57s ==============================
 + : '>>>>> End Test Output'
 + git checkout 7f7a36478abe7dd1fa993b115d22606aa0e35e88 testing/test_skipping.py
 Updated 1 path from 6966cf7b5

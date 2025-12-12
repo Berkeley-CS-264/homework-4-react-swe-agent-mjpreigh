@@ -1,18 +1,33 @@
-cpp: accept simple user-defined-literals (UDL) in DefinitionParser._parse_literal
-
-Treat literal+identifier suffixes (user-defined-literals) as fallback
-expressions in the C++ domain parser. This avoids parse errors for
-UDL forms like: 6.62607015e-34q_J or "text"_ud and allows Sphinx to
-accept these signatures without requiring full semantic handling.
-
-Changes:
-- After numeric, string, or char literal recognition, detect an
-  immediately-following identifier (no whitespace). If present, return
-  ASTFallbackExpr containing the full token (literal+suffix).
-- Preserve existing handling for builtin numeric suffixes (u, U, l, L, f, F).
-- Keep existing behavior for operator"" (unchanged).
-
-This is a conservative change to enable UDL syntax in documentation
-signatures while avoiding broad parser rewrites.
+*** Begin Patch
+*** Update File: sphinx/domains/cpp.py
+@@
+ class ASTLiteral(ASTExpression):
+     pass
++
++
++class ASTUserDefinedLiteral(ASTLiteral):
++    def __init__(self, literal: ASTLiteral, identifier: ASTIdentifier) -> None:
++        self.literal = literal
++        self.identifier = identifier
++
++    def _stringify(self, transform: StringifyTransform) -> str:
++        # No space between literal and suffix
++        return transform(self.literal) + transform(self.identifier)
++
++    def get_id(self, version: int) -> str:
++        # Create a combined id. Use a 'li' like operator-literal as separator.
++        # This is a pragmatic approach so ids are stable-ish and unique.
++        return self.literal.get_id(version) + 'li' + self.identifier.get_id(version)
++
++    def describe_signature(self, signode: TextElement, mode: str,
++                           env: "BuildEnvironment", symbol: "Symbol") -> None:
++        verify_description_mode(mode)
++        # display literal followed immediately by suffix
++        self.literal.describe_signature(signode, mode, env, symbol)
++        # Identifier should appear without space
++        # For identifiers we want the plain text representation
++        signode += nodes.Text(str(self.identifier))
+*** End Patch
+*** End Patch
 
 No changes detected to generate a patch.

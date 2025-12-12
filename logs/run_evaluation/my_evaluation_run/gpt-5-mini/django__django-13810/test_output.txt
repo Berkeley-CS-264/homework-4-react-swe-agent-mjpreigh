@@ -157,20 +157,19 @@ Date:   Wed Sep 10 11:30:32 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 429d089d0a8fbd400e0c010708df4f0d16218970
 diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
-index 8e8c3da06a..911c06b73e 100644
+index 8e8c3da06a..5af0ab131c 100644
 --- a/django/core/handlers/base.py
 +++ b/django/core/handlers/base.py
-@@ -50,12 +50,16 @@ class BaseHandler:
+@@ -50,12 +50,15 @@ class BaseHandler:
              else:
                  middleware_is_async = middleware_can_async
              try:
 -                # Adapt handler, if needed.
 -                handler = self.adapt_method_mode(
-+                # Adapt handler, if needed, to pass to the middleware factory.
-+                # Use a temporary variable so that if the middleware factory
-+                # raises MiddlewareNotUsed we don't overwrite the current
-+                # handler (which would "poison" the chain for subsequent
-+                # middleware).
++                # Adapt handler, if needed (don't overwrite the outer
++                # handler until the middleware is constructed). This avoids
++                # leaving the handler in an adapted state when the
++                # middleware __init__ raises MiddlewareNotUsed.
 +                adapted_handler = self.adapt_method_mode(
                      middleware_is_async, handler, handler_is_async,
                      debug=settings.DEBUG, name='middleware %s' % middleware_path,
@@ -366,7 +365,7 @@ test_view_exception_handled_by_process_exception (middleware_exceptions.tests.Mi
 test_missing_root_urlconf (middleware_exceptions.tests.RootUrlconfTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 33 tests in 0.091s
+Ran 33 tests in 0.084s
 
 OK
 + : '>>>>> End Test Output'

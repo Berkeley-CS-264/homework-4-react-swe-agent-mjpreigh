@@ -1,28 +1,25 @@
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..133929704 100644
+index 4eddd12b1..915e2d813 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -293,13 +293,21 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
-             Estimator instance.
-         """
-         super().set_output(transform=transform)
--        transformers = (
-+        # Collect transformers from both the user-specified list and any fitted
-+        # transformers. We also include the `remainder` estimator when it is an
-+        # estimator (not 'passthrough' or 'drop'), because `remainder` is not
-+        # present in self.transformers but should also have its output config
-+        # set.
-+        transformers = [
-             trans
-             for _, trans, _ in chain(
-                 self.transformers, getattr(self, "transformers_", [])
-             )
-             if trans not in {"passthrough", "drop"}
--        )
-+        ]
-+        rem = getattr(self, "remainder", None)
-+        if rem is not None and rem not in {"passthrough", "drop"} and rem not in transformers:
-+            transformers.append(rem)
+@@ -303,6 +303,20 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
          for trans in transformers:
              _safe_set_output(trans, transform=transform)
  
++        # Ensure that the `remainder` estimator (when provided as an estimator)
++        # also has its output configured. This was previously missed when the
++        # ColumnTransformer was not yet fitted and hence the remainder was not
++        # part of `transformers_`.
++        remainder = getattr(self, "remainder", None)
++        if remainder is not None and remainder not in {"passthrough", "drop"}:
++            # _safe_set_output already handles estimators that don't support
++            # set_output; wrap in try/except to be defensive in case of unexpected objects.
++            try:
++                _safe_set_output(remainder, transform=transform)
++            except Exception:
++                # Keep current behavior if remainder cannot be configured.
++                pass
++
+         return self
+ 
+     def get_params(self, deep=True):

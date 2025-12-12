@@ -23,7 +23,7 @@ We provide a skeleton code for you to implement your ReAct agent. Refer to [CODE
 
 To run the ReAct agent on SWE-bench instances:
 ```bash
-python run_agent.py --model gpt-5-mini --max-steps 100 --output results
+python3 run_agent.py --model gpt-5-mini --max-steps 100 --output results
 ```
 
 The agent will process SWE-bench instances and save results to the `results/` directory.
