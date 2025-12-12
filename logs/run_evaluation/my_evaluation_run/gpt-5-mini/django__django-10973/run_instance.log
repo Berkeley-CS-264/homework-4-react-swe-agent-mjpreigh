@@ -1,141 +1,57 @@
-2025-12-12 15:00:38,278 - INFO - Creating container for django__django-10973...
-2025-12-12 15:00:38,424 - INFO - Container for django__django-10973 created: 9169e7f232c951ed0d2f0f20d31f2e2a1bec1abd19b2e821d38b01354a288dbe
-2025-12-12 15:00:38,545 - INFO - Container for django__django-10973 started: 9169e7f232c951ed0d2f0f20d31f2e2a1bec1abd19b2e821d38b01354a288dbe
-2025-12-12 15:00:38,546 - INFO - Intermediate patch for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/patch.diff, now applying to container...
-2025-12-12 15:00:38,716 - INFO - >>>>> Applied Patch:
+2025-12-12 15:47:06,600 - INFO - Creating container for django__django-10973...
+2025-12-12 15:47:06,666 - INFO - Container for django__django-10973 created: d964b702eacfaf880d108f5fcb653201cd338186fb16bbc8511ec454af521389
+2025-12-12 15:47:06,752 - INFO - Container for django__django-10973 started: d964b702eacfaf880d108f5fcb653201cd338186fb16bbc8511ec454af521389
+2025-12-12 15:47:06,753 - INFO - Intermediate patch for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/patch.diff, now applying to container...
+2025-12-12 15:47:06,965 - INFO - >>>>> Applied Patch:
 Checking patch django/db/backends/postgresql/client.py...
 Applied patch django/db/backends/postgresql/client.py cleanly.
 
-2025-12-12 15:00:39,238 - INFO - Git diff before:
+2025-12-12 15:47:07,472 - INFO - Git diff before:
 diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
-index 7fca6eff30..e623a041f0 100644
+index 7fca6eff30..f9f8386f39 100644
 --- a/django/db/backends/postgresql/client.py
 +++ b/django/db/backends/postgresql/client.py
-@@ -2,7 +2,6 @@ import os
- import signal
- import subprocess
- 
--from django.core.files.temp import NamedTemporaryFile
- from django.db.backends.base.client import BaseDatabaseClient
- 
- 
-@@ -34,38 +33,23 @@ class DatabaseClient(BaseDatabaseClient):
-             args += ['-p', str(port)]
-         args += [dbname]
- 
--        temp_pgpass = None
-+        # Prepare a custom environment for the subprocess so we don't need to
-+        # rely on global os.environ side effects. Use PGPASSWORD if a password
-+        # is provided. Keep SIGINT handling behavior (ignored in Python so it's
-+        # passed to the child process).
-+        env = os.environ.copy()
-+        if passwd:
-+            env['PGPASSWORD'] = passwd
-         sigint_handler = signal.getsignal(signal.SIGINT)
-         try:
--            if passwd:
--                # Create temporary .pgpass file.
--                temp_pgpass = NamedTemporaryFile(mode='w+')
--                try:
--                    print(
--                        _escape_pgpass(host) or '*',
--                        str(port) or '*',
--                        _escape_pgpass(dbname) or '*',
--                        _escape_pgpass(user) or '*',
--                        _escape_pgpass(passwd),
--                        file=temp_pgpass,
--                        sep=':',
--                        flush=True,
--                    )
--                    os.environ['PGPASSFILE'] = temp_pgpass.name
--                except UnicodeEncodeError:
--                    # If the current locale can't encode the data, let the
--                    # user input the password manually.
--                    pass
+@@ -58,7 +58,13 @@ class DatabaseClient(BaseDatabaseClient):
+                     pass
              # Allow SIGINT to pass to psql to abort queries.
              signal.signal(signal.SIGINT, signal.SIG_IGN)
 -            subprocess.check_call(args)
-+            # Use subprocess.run with check=True to mirror check_call behavior
-+            # while allowing us to pass a custom environment.
-+            subprocess.run(args, env=env, check=True)
++            # Use subprocess.run so we can pass a modified environment.
++            env = os.environ.copy()
++            if passwd:
++                # Passing the password via PGPASSWORD is more reliable than
++                # relying on external .pgpass files in some environments.
++                env['PGPASSWORD'] = passwd
++            subprocess.run(args, check=True, env=env)
          finally:
              # Restore the original SIGINT handler.
              signal.signal(signal.SIGINT, sigint_handler)
--            if temp_pgpass:
--                temp_pgpass.close()
--                if 'PGPASSFILE' in os.environ:  # unit tests need cleanup
--                    del os.environ['PGPASSFILE']
- 
-     def runshell(self):
-         DatabaseClient.runshell_db(self.connection.get_connection_params())
-2025-12-12 15:00:39,238 - INFO - Eval script for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/eval.sh; copying to container...
-2025-12-12 15:00:51,318 - INFO - Test runtime: 12.02 seconds
-2025-12-12 15:00:51,319 - INFO - Test output for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/test_output.txt
-2025-12-12 15:00:51,404 - INFO - Git diff after:
+2025-12-12 15:47:07,472 - INFO - Eval script for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/eval.sh; copying to container...
+2025-12-12 15:47:19,355 - INFO - Test runtime: 11.84 seconds
+2025-12-12 15:47:19,356 - INFO - Test output for django__django-10973 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-10973/test_output.txt
+2025-12-12 15:47:19,466 - INFO - Git diff after:
 diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
-index 7fca6eff30..e623a041f0 100644
+index 7fca6eff30..f9f8386f39 100644
 --- a/django/db/backends/postgresql/client.py
 +++ b/django/db/backends/postgresql/client.py
-@@ -2,7 +2,6 @@ import os
- import signal
- import subprocess
- 
--from django.core.files.temp import NamedTemporaryFile
- from django.db.backends.base.client import BaseDatabaseClient
- 
- 
-@@ -34,38 +33,23 @@ class DatabaseClient(BaseDatabaseClient):
-             args += ['-p', str(port)]
-         args += [dbname]
- 
--        temp_pgpass = None
-+        # Prepare a custom environment for the subprocess so we don't need to
-+        # rely on global os.environ side effects. Use PGPASSWORD if a password
-+        # is provided. Keep SIGINT handling behavior (ignored in Python so it's
-+        # passed to the child process).
-+        env = os.environ.copy()
-+        if passwd:
-+            env['PGPASSWORD'] = passwd
-         sigint_handler = signal.getsignal(signal.SIGINT)
-         try:
--            if passwd:
--                # Create temporary .pgpass file.
--                temp_pgpass = NamedTemporaryFile(mode='w+')
--                try:
--                    print(
--                        _escape_pgpass(host) or '*',
--                        str(port) or '*',
--                        _escape_pgpass(dbname) or '*',
--                        _escape_pgpass(user) or '*',
--                        _escape_pgpass(passwd),
--                        file=temp_pgpass,
--                        sep=':',
--                        flush=True,
--                    )
--                    os.environ['PGPASSFILE'] = temp_pgpass.name
--                except UnicodeEncodeError:
--                    # If the current locale can't encode the data, let the
--                    # user input the password manually.
--                    pass
+@@ -58,7 +58,13 @@ class DatabaseClient(BaseDatabaseClient):
+                     pass
              # Allow SIGINT to pass to psql to abort queries.
              signal.signal(signal.SIGINT, signal.SIG_IGN)
 -            subprocess.check_call(args)
-+            # Use subprocess.run with check=True to mirror check_call behavior
-+            # while allowing us to pass a custom environment.
-+            subprocess.run(args, env=env, check=True)
++            # Use subprocess.run so we can pass a modified environment.
++            env = os.environ.copy()
++            if passwd:
++                # Passing the password via PGPASSWORD is more reliable than
++                # relying on external .pgpass files in some environments.
++                env['PGPASSWORD'] = passwd
++            subprocess.run(args, check=True, env=env)
          finally:
              # Restore the original SIGINT handler.
              signal.signal(signal.SIGINT, sigint_handler)
--            if temp_pgpass:
--                temp_pgpass.close()
--                if 'PGPASSFILE' in os.environ:  # unit tests need cleanup
--                    del os.environ['PGPASSFILE']
- 
-     def runshell(self):
-         DatabaseClient.runshell_db(self.connection.get_connection_params())
-2025-12-12 15:00:51,404 - INFO - Grading answer for django__django-10973...
-2025-12-12 15:00:51,404 - INFO - report: {'django__django-10973': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_accent (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_basic (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_column (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_nopass (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'SIGINT is ignored in Python and passed to psql to abort quries.'], 'failure': []}, 'PASS_TO_PASS': {'success': [], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+2025-12-12 15:47:19,466 - INFO - Grading answer for django__django-10973...
+2025-12-12 15:47:19,466 - INFO - report: {'django__django-10973': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_accent (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_basic (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_column (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'test_nopass (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)', 'SIGINT is ignored in Python and passed to psql to abort quries.'], 'failure': []}, 'PASS_TO_PASS': {'success': [], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for django__django-10973: resolved: True
-2025-12-12 15:00:51,404 - INFO - Attempting to stop container sweb.eval.django__django-10973.my_evaluation_run...
-2025-12-12 15:01:06,593 - INFO - Attempting to remove container sweb.eval.django__django-10973.my_evaluation_run...
-2025-12-12 15:01:06,608 - INFO - Container sweb.eval.django__django-10973.my_evaluation_run removed.
+2025-12-12 15:47:19,467 - INFO - Attempting to stop container sweb.eval.django__django-10973.my_evaluation_run...
+2025-12-12 15:47:34,656 - INFO - Attempting to remove container sweb.eval.django__django-10973.my_evaluation_run...
+2025-12-12 15:47:34,669 - INFO - Container sweb.eval.django__django-10973.my_evaluation_run removed.

@@ -1,78 +1,32 @@
-diff --git a/sympy/geometry/entity.py b/sympy/geometry/entity.py
-index ee5c910268..2d19ae9cad 100644
---- a/sympy/geometry/entity.py
-+++ b/sympy/geometry/entity.py
-@@ -138,8 +138,37 @@ def __repr__(self):
-         return type(self).__name__ + repr(self.args)
- 
-     def __rmul__(self, a):
--        """Implementation of reverse multiplication method."""
--        return a.__mul__(self)
-+        """Implementation of reverse multiplication method.
-+
-+        Try the left operand's __mul__ first. However, for some SymPy numeric
-+        types (e.g. Float, Integer) __mul__ will produce a Mul expression
-+        containing the GeometryEntity instead of returning NotImplemented.
-+        In that case we should use the GeometryEntity's own __mul__ so that
-+        number * Point behaves the same as Point * number (coordinate-wise
-+        multiplication).
-+        """
-+        try:
-+            res = a.__mul__(self)
-+        except Exception:
-+            # If the left operand's __mul__ raised, fall back to entity's __mul__.
-+            return self.__mul__(a)
-+
-+        # If left operand doesn't know how to handle it, use entity's __mul__.
-+        if res is NotImplemented:
-+            return self.__mul__(a)
-+
-+        # If the left operand returned a Mul that contains this entity,
-+        # prefer the entity's __mul__ (e.g., 2.0*Point(...) should act like
-+        # Point.__mul__).
-+        try:
-+            from sympy.core.mul import Mul
-+            if isinstance(res, Mul) and res.has(self):
-+                return self.__mul__(a)
-+        except Exception:
-+            # If inspection fails for any reason, fall back to left operand's result.
-+            pass
-+
-+        return res
- 
-     def __rsub__(self, a):
-         """Implementation of reverse subtraction method."""
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..63b419943c 100644
+index 7c978c47be..b060db5aff 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -216,6 +216,29 @@ def __add__(self, other):
+@@ -32,6 +32,7 @@
+ from sympy.core.numbers import Float
+ from sympy.core.evaluate import global_evaluate
+ from sympy.core.add import Add
++from sympy.core.mul import Mul
+ from sympy.utilities.iterables import uniq
+ from sympy.utilities.misc import filldedent, func_name, Undecidable
+ 
+@@ -213,6 +214,19 @@ def __add__(self, other):
+         sympy.geometry.point.Point.translate
+ 
+         """
++        # If other is a Mul that contains a Point factor (e.g. 2*Point(1, 1)),
++        # extract the Point and the remaining scalar factor so that the
++        # multiplication is performed via Point.__mul__ and normalized
++        # properly. This makes scalar*Point behave the same as Point*scalar.
++        if isinstance(other, Mul):
++            # find a Point factor in the Mul's args
++            for f in other.args:
++                if isinstance(f, Point):
++                    # remaining factor is the product of the other args
++                    remaining = Mul(*[g for g in other.args if g is not f])
++                    other = f * remaining
++                    break
++
          try:
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
-+            # If the left operand produced a Mul like (2.0*Point(...)),
-+            # Point(other) above will raise TypeError because it expects a
-+            # sequence of coordinates or a Point.  Detect the common case
-+            # where `other` is a Mul containing a Point factor and handle
-+            # it by delegating to the coordinate-wise multiplication path
-+            # (which Point.__mul__ already implements).
-+            try:
-+                from sympy.core.mul import Mul
-+            except Exception:
-+                Mul = None
-+            if (Mul is not None) and isinstance(other, Mul):
-+                # Separate the Point factor from the scalar factor(s).
-+                pt_factor = None
-+                scalar = S.One
-+                for a in other.args:
-+                    if hasattr(a, 'is_Point') and getattr(a, 'is_Point'):
-+                        pt_factor = a
-+                    else:
-+                        scalar = scalar * a
-+                if pt_factor is not None:
-+                    # use point * scalar (coordinate-wise multiplication)
-+                    return self + (pt_factor * scalar)
-+            # fallback: raise as before
-             raise GeometryError("Don't know how to add {} and a Point object".format(other))
- 
-         coords = [simplify(a + b) for a, b in zip(s, o)]

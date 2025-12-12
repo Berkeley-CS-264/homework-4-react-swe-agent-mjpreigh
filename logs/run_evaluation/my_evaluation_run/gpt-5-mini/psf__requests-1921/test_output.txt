@@ -135,7 +135,7 @@ On branch main
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   requests/sessions.py
+	modified:   requests/models.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -145,24 +145,26 @@ Date:   Wed Sep 10 14:59:29 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff 3c88e520da24ae6f736929a750876e7654accc3d
-diff --git a/requests/sessions.py b/requests/sessions.py
-index a023e4e..5da546e 100644
---- a/requests/sessions.py
-+++ b/requests/sessions.py
-@@ -54,8 +54,12 @@ def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
-     merged_setting = dict_class(to_key_val_list(session_setting))
-     merged_setting.update(to_key_val_list(request_setting))
+diff --git a/requests/models.py b/requests/models.py
+index cd232e6..945aa1d 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -391,7 +391,15 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+         """Prepares the given HTTP headers."""
  
--    # Remove keys that are set to None.
--    for (k, v) in request_setting.items():
-+    # Remove keys that are set to None in the merged result.
-+    # If a key is explicitly set to None in either the session settings
-+    # or the request settings, it should be omitted from the final mapping.
-+    # (This handles the common case of session.headers['Some-Header'] = None
-+    # meaning "do not send this header".)
-+    for (k, v) in list(merged_setting.items()):
-         if v is None:
-             del merged_setting[k]
+         if headers:
+-            self.headers = CaseInsensitiveDict((to_native_string(name), value) for name, value in headers.items())
++            # Filter out headers explicitly set to None. Setting a header's value to None on
++            # a Session should indicate it should not be sent, not that the string "None"
++            # should be transmitted. For example, session.headers['Accept-Encoding'] = None
++            # should remove that header rather than send 'Accept-Encoding: None'.
++            self.headers = CaseInsensitiveDict(
++                (to_native_string(name), value)
++                for name, value in headers.items()
++                if value is not None
++            )
+         else:
+             self.headers = CaseInsensitiveDict()
  
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
@@ -295,8 +297,8 @@ Processing /testbed
 Building wheels for collected packages: requests
   Building wheel for requests (setup.py): started
   Building wheel for requests (setup.py): finished with status 'done'
-  Created wheel for requests: filename=requests-2.3.0-py2.py3-none-any.whl size=441527 sha256=2856f095099c34e86c80c9790a4b3592a11a35206f2bcade7e1b4c3b10c96610
-  Stored in directory: /tmp/pip-ephem-wheel-cache-3eq0hx3g/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+  Created wheel for requests: filename=requests-2.3.0-py2.py3-none-any.whl size=441556 sha256=451fa422a6a36b656adcd01a124679182f944e8ff64385c887ef8e54a48ad571
+  Stored in directory: /tmp/pip-ephem-wheel-cache-9o4c4o1v/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
 Successfully built requests
 Installing collected packages: requests
   Attempting uninstall: requests
@@ -330,11 +332,19 @@ self = <test_requests.RequestsTestCase testMethod=test_BASICAUTH_TUPLE_HTTP_200_
         url = httpbin('basic-auth', 'user', 'pass')
     
         r = requests.get(url, auth=auth)
+        assert r.status_code == 200
+    
+        r = requests.get(url)
+        assert r.status_code == 401
+    
+        s = requests.session()
+        s.auth = auth
+        r = s.get(url)
 >       assert r.status_code == 200
 E       assert 503 == 200
 E        +  where 503 = <Response [503]>.status_code
 
-test_requests.py:251: AssertionError
+test_requests.py:259: AssertionError
 ______________ RequestsTestCase.test_DIGESTAUTH_QUOTES_QOP_VALUE _______________
 
 self = <test_requests.RequestsTestCase testMethod=test_DIGESTAUTH_QUOTES_QOP_VALUE>
@@ -570,7 +580,7 @@ self = <Response [503]>
 >           raise HTTPError(http_error_msg, response=self)
 E           requests.exceptions.HTTPError: 503 Server Error: Service Temporarily Unavailable
 
-requests/models.py:792: HTTPError
+requests/models.py:800: HTTPError
 ____________ RequestsTestCase.test_POSTBIN_GET_POST_FILES_WITH_DATA ____________
 
 self = <test_requests.RequestsTestCase testMethod=test_POSTBIN_GET_POST_FILES_WITH_DATA>
@@ -600,7 +610,7 @@ self = <Response [503]>
 >           raise HTTPError(http_error_msg, response=self)
 E           requests.exceptions.HTTPError: 503 Server Error: Service Temporarily Unavailable
 
-requests/models.py:792: HTTPError
+requests/models.py:800: HTTPError
 __________________ RequestsTestCase.test_basicauth_with_netrc __________________
 
 self = <test_requests.RequestsTestCase testMethod=test_basicauth_with_netrc>
@@ -730,7 +740,7 @@ self = <test_requests.RequestsTestCase testMethod=test_cookie_sent_on_redirect>
 
 test_requests.py:149: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-requests/models.py:760: in json
+requests/models.py:768: in json
     return json.loads(self.text, **kwargs)
 /opt/miniconda3/envs/testbed/lib/python3.9/json/__init__.py:346: in loads
     return _default_decoder.decode(s)
@@ -802,7 +812,7 @@ self = <test_requests.RequestsTestCase testMethod=test_generic_cookiejar_works>
 
 test_requests.py:196: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-requests/models.py:760: in json
+requests/models.py:768: in json
     return json.loads(self.text, **kwargs)
 /opt/miniconda3/envs/testbed/lib/python3.9/json/__init__.py:346: in loads
     return _default_decoder.decode(s)
@@ -864,7 +874,7 @@ self = <test_requests.RequestsTestCase testMethod=test_param_cookiejar_works>
 
 test_requests.py:206: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-requests/models.py:760: in json
+requests/models.py:768: in json
     return json.loads(self.text, **kwargs)
 /opt/miniconda3/envs/testbed/lib/python3.9/json/__init__.py:346: in loads
     return _default_decoder.decode(s)
@@ -904,7 +914,7 @@ self = <test_requests.RequestsTestCase testMethod=test_params_are_merged_case_se
 
 test_requests.py:819: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-requests/models.py:760: in json
+requests/models.py:768: in json
     return json.loads(self.text, **kwargs)
 /opt/miniconda3/envs/testbed/lib/python3.9/json/__init__.py:346: in loads
     return _default_decoder.decode(s)
@@ -955,7 +965,7 @@ self = <test_requests.RequestsTestCase testMethod=test_prepared_from_session>
 
 test_requests.py:542: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-requests/models.py:760: in json
+requests/models.py:768: in json
     return json.loads(self.text, **kwargs)
 /opt/miniconda3/envs/testbed/lib/python3.9/json/__init__.py:346: in loads
     return _default_decoder.decode(s)
@@ -995,7 +1005,7 @@ self = <test_requests.RequestsTestCase testMethod=test_request_cookie_overrides_
 
 test_requests.py:179: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-requests/models.py:760: in json
+requests/models.py:768: in json
     return json.loads(self.text, **kwargs)
 /opt/miniconda3/envs/testbed/lib/python3.9/json/__init__.py:346: in loads
     return _default_decoder.decode(s)
@@ -1279,7 +1289,7 @@ FAILED test_requests.py::RequestsTestCase::test_unicode_multipart_post - asse...
 FAILED test_requests.py::RequestsTestCase::test_uppercase_scheme_redirect - a...
 FAILED test_requests.py::RequestsTestCase::test_urlencoded_get_query_multivalued_param
 FAILED test_requests.py::RequestsTestCase::test_user_agent_transfers - Assert...
-================== 35 failed, 84 passed, 3 warnings in 11.62s ==================
+================== 35 failed, 84 passed, 3 warnings in 42.65s ==================
 + : '>>>>> End Test Output'
 + git checkout 3c88e520da24ae6f736929a750876e7654accc3d test_requests.py
 Updated 1 path from cf441cd

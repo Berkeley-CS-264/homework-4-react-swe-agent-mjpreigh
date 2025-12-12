@@ -1,46 +1,34 @@
-*** Begin Patch
-*** Update File: sphinx/domains/cpp.py
-@@
- class ASTStringLiteral(ASTLiteral):
-     def __init__(self, data: str) -> None:
-         self.data = data
-@@
-     def describe_signature(self, signode: TextElement, mode: str,
-                            env: "BuildEnvironment", symbol: "Symbol") -> None:
-         txt = str(self)
-         signode.append(nodes.Text(txt, txt))
+diff --git a/sphinx/domains/cpp.py b/sphinx/domains/cpp.py
+index fe52d881d..2c2dfd458 100644
+--- a/sphinx/domains/cpp.py
++++ b/sphinx/domains/cpp.py
+@@ -4664,10 +4664,19 @@ class DefinitionParser(BaseParser):
+             if self.match(regex):
+                 while self.current_char in 'uUlLfF':
+                     self.pos += 1
++                # optionally accept a user-defined-literal (UDL) suffix (an identifier)
++                # e.g. 42_kg, 6.626e-34q_J
++                self.match(identifier_re)
+                 return ASTNumberLiteral(self.definition[pos:self.pos])
  
+         string = self._parse_string()
+         if string is not None:
++            # optionally accept a user-defined-literal (UDL) suffix for strings
++            # e.g. "hello"s
++            s_pos = self.pos
++            if self.match(identifier_re):
++                # append the suffix to the string data
++                string = string + self.last_match.group(0)
+             return ASTStringLiteral(string)
  
- class ASTCharLiteral(ASTLiteral):
-     def __init__(self, prefix: str, data: str) -> None:
-         self.prefix = prefix  # may be None when no prefix
-         self.data = data
-         assert prefix in _id_char_from_prefix
-         self.type = _id_char_from_prefix[prefix]
-         decoded = data.encode().decode('unicode-escape')
-         if len(decoded) == 1:
-             self.value = ord(decoded)
-         else:
-             raise UnsupportedMultiCharacterCharLiteral(decoded)
-@@
-         signode.append(nodes.Text(txt, txt))
- 
-+
-+class ASTUserDefinedLiteral(ASTLiteral):
-+    """Represents a user-defined literal (literal + identifier suffix)."""
-+    def __init__(self, data: str) -> None:
-+        self.data = data
-+
-+    def _stringify(self, transform: StringifyTransform) -> str:
-+        return self.data
-+
-+    def get_id(self, version: int) -> str:
-+        return str(self.data)
-+
-+    def describe_signature(self, signode: TextElement, mode: str,
-+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
-+        signode.append(nodes.Text(self.data, self.data))
-+
-*** End Patch
-
-No changes detected to generate a patch.
+         # character-literal
+@@ -4675,6 +4684,9 @@ class DefinitionParser(BaseParser):
+             prefix = self.last_match.group(1)  # may be None when no prefix
+             data = self.last_match.group(2)
+             try:
++                # optionally accept a user-defined-literal (UDL) suffix for chars
++                # e.g. 'a'_kg
++                self.match(identifier_re)
+                 return ASTCharLiteral(prefix, data)
+             except UnicodeDecodeError as e:
+                 self.fail("Can not handle character literal. Internal error was: %s" % e)

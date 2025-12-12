@@ -1,17 +1,15 @@
-diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
-index 14dab517c9..7bea6b8cc6 100644
---- a/django/core/servers/basehttp.py
-+++ b/django/core/servers/basehttp.py
-@@ -79,7 +79,11 @@ class WSGIServer(simple_server.WSGIServer):
- 
- class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
-     """A threaded version of the WSGIServer"""
--    daemon_threads = True
-+    # Use non-daemon worker threads so the server waits for them to finish
-+    # during shutdown. Daemon threads may be terminated abruptly which can
-+    # prevent per-thread cleanup (for example, closing DB connections),
-+    # leading to issues when tearing down test databases.
-+    daemon_threads = False
+diff --git a/django/test/testcases.py b/django/test/testcases.py
+index 92f566b7b0..15481f0287 100644
+--- a/django/test/testcases.py
++++ b/django/test/testcases.py
+@@ -1526,6 +1526,10 @@ class LiveServerThread(threading.Thread):
+             self.httpd.shutdown()
+             self.httpd.server_close()
+         self.join()
++        # Ensure all database connections are closed after the live server
++        # thread has stopped, to avoid race conditions where database
++        # destruction fails because other threads still hold connections.
++        connections.close_all()
  
  
- class ServerHandler(simple_server.ServerHandler):
+ class LiveServerTestCase(TransactionTestCase):

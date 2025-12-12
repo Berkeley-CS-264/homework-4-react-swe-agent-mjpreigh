@@ -135,7 +135,7 @@ On branch main
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   django/contrib/auth/__init__.py
+	modified:   django/contrib/auth/tokens.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -145,97 +145,56 @@ Date:   Wed Sep 10 13:33:54 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff 9b224579875e30203d079cc2fee83b116d98eb78
-diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py
-index 155330c596..1993157f45 100644
---- a/django/contrib/auth/__init__.py
-+++ b/django/contrib/auth/__init__.py
-@@ -5,7 +5,7 @@ from django.apps import apps as django_apps
+diff --git a/django/contrib/auth/tokens.py b/django/contrib/auth/tokens.py
+index 09cc2b5195..ff0f26b702 100644
+--- a/django/contrib/auth/tokens.py
++++ b/django/contrib/auth/tokens.py
+@@ -1,6 +1,7 @@
+ from datetime import datetime
+ 
  from django.conf import settings
- from django.core.exceptions import ImproperlyConfigured, PermissionDenied
- from django.middleware.csrf import rotate_token
--from django.utils.crypto import constant_time_compare
-+from django.utils.crypto import constant_time_compare, salted_hmac
- from django.utils.module_loading import import_string
- from django.views.decorators.debug import sensitive_variables
++from django.core.exceptions import ImproperlyConfigured
+ from django.utils.crypto import constant_time_compare, salted_hmac
+ from django.utils.http import base36_to_int, int_to_base36
  
-@@ -16,7 +16,6 @@ BACKEND_SESSION_KEY = "_auth_user_backend"
- HASH_SESSION_KEY = "_auth_user_hash"
- REDIRECT_FIELD_NAME = "next"
+@@ -20,7 +21,16 @@ class PasswordResetTokenGenerator:
+         self.algorithm = self.algorithm or "sha256"
  
--
- def load_backend(path):
-     return import_string(path)()
+     def _get_secret(self):
+-        return self._secret or settings.SECRET_KEY
++        # Prefer an explicitly set secret on the instance, otherwise use the
++        # project's SECRET_KEY. Raise if the resolved secret is empty so that
++        # callers know that SECRET_KEY must be set.
++        if self._secret is not None:
++            secret = self._secret
++        else:
++            secret = settings.SECRET_KEY
++        if not secret:
++            raise ImproperlyConfigured("The SECRET_KEY setting must not be empty.")
++        return secret
  
-@@ -60,7 +59,6 @@ def _get_user_session_key(request):
-     return get_user_model()._meta.pk.to_python(request.session[SESSION_KEY])
+     def _set_secret(self, secret):
+         self._secret = secret
+@@ -28,9 +38,17 @@ class PasswordResetTokenGenerator:
+     secret = property(_get_secret, _set_secret)
  
+     def _get_fallbacks(self):
++        # If no explicit fallbacks set on the instance, pull from settings.
+         if self._secret_fallbacks is None:
+-            return settings.SECRET_KEY_FALLBACKS
+-        return self._secret_fallbacks
++            fallbacks = getattr(settings, "SECRET_KEY_FALLBACKS", [])
++        else:
++            fallbacks = self._secret_fallbacks
++        # Normalize to a list to avoid issues when unpacking/iterating.
++        if not fallbacks:
++            return []
++        if isinstance(fallbacks, (str, bytes)):
++            return [fallbacks]
++        return list(fallbacks)
  
--@sensitive_variables("credentials")
- def authenticate(request=None, **credentials):
-     """
-     If the given credentials are valid, return a User object.
-@@ -106,9 +104,7 @@ def login(request, user, backend=None):
-     if SESSION_KEY in request.session:
-         if _get_user_session_key(request) != user.pk or (
-             session_auth_hash
--            and not constant_time_compare(
--                request.session.get(HASH_SESSION_KEY, ""), session_auth_hash
--            )
-+            and not _session_auth_hash_matches(request.session.get(HASH_SESSION_KEY, ""), user)
-         ):
-             # To avoid reusing another user's session, create a new, empty
-             # session if the existing session corresponds to a different
-@@ -199,9 +195,7 @@ def get_user(request):
-             # Verify the session
-             if hasattr(user, "get_session_auth_hash"):
-                 session_hash = request.session.get(HASH_SESSION_KEY)
--                session_hash_verified = session_hash and constant_time_compare(
--                    session_hash, user.get_session_auth_hash()
--                )
-+                session_hash_verified = _session_auth_hash_matches(session_hash, user)
-                 if not session_hash_verified:
-                     request.session.flush()
-                     user = None
-@@ -228,3 +222,39 @@ def update_session_auth_hash(request, user):
-     request.session.cycle_key()
-     if hasattr(user, "get_session_auth_hash") and request.user == user:
-         request.session[HASH_SESSION_KEY] = user.get_session_auth_hash()
-+
-+
-+def _session_auth_hash_matches(session_hash, user):
-+    """
-+    Return True if the provided session_hash matches the user's session auth
-+    hash using the current SECRET_KEY or any key in SECRET_KEY_FALLBACKS.
-+
-+    This preserves sessions across SECRET_KEY rotations where the previous
-+    keys have been added to SECRET_KEY_FALLBACKS.
-+    """
-+    if not session_hash:
-+        return False
-+    # First try the current key (use the existing API on the user)
-+    try:
-+        current = user.get_session_auth_hash()
-+    except Exception:
-+        current = None
-+    if current and constant_time_compare(session_hash, current):
-+        return True
-+
-+    # If there are fallbacks, try them
-+    fallbacks = getattr(settings, "SECRET_KEY_FALLBACKS", None) or []
-+    if not fallbacks:
-+        return False
-+
-+    key_salt = "django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash"
-+    # Try each fallback secret
-+    for secret in fallbacks:
-+        try:
-+            expected = salted_hmac(key_salt, user.password, secret=secret, algorithm="sha256").hexdigest()
-+        except Exception:
-+            # Ignore malformed secrets or other errors and continue trying others.
-+            continue
-+        if constant_time_compare(session_hash, expected):
-+            return True
-+    return False
+     def _set_fallbacks(self, fallbacks):
+         self._secret_fallbacks = fallbacks
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -375,8 +334,8 @@ Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/l
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-5.0.dev20250910133354-0.editable-py3-none-any.whl size=27433 sha256=4db487a1d97c54ab4665868723a1be4e6e63a34af2c8277a364f4e88b8066d1c
-  Stored in directory: /tmp/pip-ephem-wheel-cache-ay35ipjs/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+  Created wheel for Django: filename=django-5.0.dev20250910133354-0.editable-py3-none-any.whl size=27433 sha256=fe163060bb394bffe7c114be0c5ccc442fb7f7df91a55fd7291c256f9b8ceca7
+  Stored in directory: /tmp/pip-ephem-wheel-cache-204twgzn/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -461,12 +420,12 @@ test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_f
 FAIL: test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_fallback_secret)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/testbed/tests/auth_tests/test_basic.py", line 158, in test_get_user_fallback_secret
-    self.assertNotEqual(request.session.session_key, prev_session_key)
-AssertionError: 'dyjx4gtx1fkszywd160o03fmku28gq3z' == 'dyjx4gtx1fkszywd160o03fmku28gq3z'
+  File "/testbed/tests/auth_tests/test_basic.py", line 156, in test_get_user_fallback_secret
+    self.assertIsInstance(user, User)
+AssertionError: <django.contrib.auth.models.AnonymousUser object at 0x7ffffce07c10> is not an instance of <class 'django.contrib.auth.models.User'>
 
 ----------------------------------------------------------------------
-Ran 13 tests in 0.038s
+Ran 13 tests in 0.037s
 
 FAILED (failures=1)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...

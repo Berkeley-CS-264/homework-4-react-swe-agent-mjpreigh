@@ -1,13 +1,28 @@
 diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
-index a59f0c8dcb..3d25ce7b0c 100644
+index a59f0c8dcb..b8a535241a 100644
 --- a/django/db/migrations/writer.py
 +++ b/django/db/migrations/writer.py
-@@ -175,7 +175,7 @@ class MigrationWriter:
+@@ -173,9 +173,20 @@ class MigrationWriter:
+         else:
+             imports.add("from django.db import migrations")
  
-         # Sort imports by the package / module to be imported (the part after
-         # "from" in "from ... import ..." or after "import" in "import ...").
+-        # Sort imports by the package / module to be imported (the part after
+-        # "from" in "from ... import ..." or after "import" in "import ...").
 -        sorted_imports = sorted(imports, key=lambda i: i.split()[1])
-+        sorted_imports = sorted(imports, key=lambda i: (0 if i.startswith('import ') else 1, i.split()[1]))
++        # Sort imports into two groups: plain module imports (import ...)
++        # first, then "from ... import ..." imports. Within each group, sort
++        # by the package/module name (the part after "import" for plain
++        # imports, or after "from" for from-imports).
++        def _import_key(i):
++            parts = i.split()
++            # parts[0] is either "import" or "from"
++            if parts[0] == "import":
++                # ("import", module_name) -> (0, module_name) so plain imports come first
++                return (0, parts[1])
++            # "from <module> import ..."
++            return (1, parts[1])
++
++        sorted_imports = sorted(imports, key=_import_key)
          items["imports"] = "\n".join(sorted_imports) + "\n" if imports else ""
          if migration_imports:
              items["imports"] += (

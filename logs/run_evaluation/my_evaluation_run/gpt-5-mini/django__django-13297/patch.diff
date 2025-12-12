@@ -1,28 +1,31 @@
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..bd1414b485 100644
+index ea5baca08d..21e9ca40a2 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -27,6 +27,23 @@ class ContextMixin:
+@@ -11,7 +11,7 @@ from django.template.response import TemplateResponse
+ from django.urls import reverse
+ from django.utils.decorators import classonlymethod
+ from django.utils.deprecation import RemovedInDjango40Warning
+-from django.utils.functional import SimpleLazyObject
++from django.utils.functional import SimpleLazyObject, empty
+ 
+ logger = logging.getLogger('django.request')
+ 
+@@ -27,6 +27,17 @@ class ContextMixin:
          kwargs.setdefault('view', self)
          if self.extra_context is not None:
              kwargs.update(self.extra_context)
-+        # Ensure SimpleLazyObject values are resolved to their underlying
-+        # objects when returning the context. URL kwargs are wrapped in
-+        # SimpleLazyObject (see _wrap_url_kwargs_with_deprecation_warning),
-+        # and leaving them as lazy proxies can cause unexpected type errors
-+        # when view code uses those values (for example passing them to ORM
-+        # filters). Force evaluation and replace the proxy with the wrapped
-+        # object where possible.
++        # Unwrap any SimpleLazyObject instances (e.g. URL kwargs wrapped for
++        # deprecation warnings) so downstream code that expects plain values
++        # (like ORM lookups) receives the actual object types.
 +        for key, value in list(kwargs.items()):
 +            if isinstance(value, SimpleLazyObject):
-+                try:
-+                    # Force evaluation of the lazy object. _setup will populate
-+                    # _wrapped with the actual value.
++                # Ensure the lazy object is initialized.
++                if getattr(value, '_wrapped', None) is empty:
++                    # Force setup to populate _wrapped.
 +                    value._setup()
-+                except Exception:
-+                    # If setup fails for any reason, leave the lazy object as-is.
-+                    continue
-+                kwargs[key] = getattr(value, '_wrapped', value)
++                kwargs[key] = value._wrapped
++        return kwargs
          return kwargs
  
  

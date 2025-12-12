@@ -1,39 +1,26 @@
 diff --git a/requests/utils.py b/requests/utils.py
-index 132cd2b..3652c90 100644
+index 132cd2b..f293cbb 100644
 --- a/requests/utils.py
 +++ b/requests/utils.py
-@@ -689,19 +689,25 @@ def to_native_string(string, encoding='ascii'):
+@@ -688,11 +688,21 @@ def to_native_string(string, encoding='ascii'):
+     Given a string object, regardless of type, returns a representation of that
      string in the native string type, encoding and decoding where necessary.
      This assumes ASCII unless told otherwise.
++
++    Note: bytes objects (binary data) are returned unchanged. Decoding arbitrary
++    binary data with ASCII by default caused errors when users passed bytes as
++    request payloads. Requests supports bytes payloads, so we must not force a
++    decode here.
      """
--    out = None
--
-+    # If it's already the native string type, just return it.
+     out = None
+ 
++    # Native string type (str on both Python 2/3) -> return as-is.
      if isinstance(string, builtin_str):
--        out = string
--    else:
--        if is_py2:
--            out = string.encode(encoding)
--        else:
--            out = string.decode(encoding)
-+        return string
- 
--    return out
-+    # Python 2: encode unicode to bytes using the given encoding.
-+    if is_py2:
-+        return string.encode(encoding)
- 
-+    # Python 3: avoid decoding arbitrary bytes into text. Decoding binary payloads
-+    # with ASCII will raise. Attempt to decode bytes using the given encoding;
-+    # if decoding fails, return the original bytes unchanged to preserve binary data.
-+    if isinstance(string, bytes):
-+        try:
-+            return string.decode(encoding)
-+        except UnicodeDecodeError:
-+            return string
- 
-+    # Fallback: coerce to native str.
-+    return str(string)
- def urldefragauth(url):
-     """
-     Given a url remove the fragment and the authentication part
+         out = string
++    # Bytes objects: leave as-is. On Python 2, bytes is the same as builtin_str,
++    # so the previous branch will handle it.
++    elif isinstance(string, bytes):
++        out = string
+     else:
+         if is_py2:
+             out = string.encode(encoding)

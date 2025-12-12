@@ -1,18 +1,54 @@
 *** Begin Patch
-*** Update File: src/_pytest/skipping.py
+*** Update File: src/_pytest/python.py
 @@
- def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
-     outcome = yield
-     rep = outcome.get_result()
--    xfailed = item._store.get(xfailed_key, None)
-+    # Refresh xfail evaluation here if it hasn't been evaluated yet
-+    # This ensures markers that were added dynamically during the test
-+    # (e.g. via request.node.add_marker(pytest.mark.xfail(...))) are
-+    # taken into account when building the report.
-+    xfailed = item._store.get(xfailed_key, None)
-+    if xfailed is None:
-+        xfailed = evaluate_xfail_marks(item)
-+        item._store[xfailed_key] = xfailed
+     def runtest(self) -> None:
+         """ execute the underlying test function. """
+         self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+ 
+     def setup(self) -> None:
+         if isinstance(self.parent, Instance):
+             self.parent.newinstance()
+             self.obj = self._getobj()
+         self._request._fillfixtures()
+ 
+     def _prunetraceback(self, excinfo: ExceptionInfo) -> None:
+         if hasattr(self, "_obj") and not self.config.getoption("fulltrace", False):
+@@
+         if self.config.getoption("tbstyle", "auto") == "auto":
+             if len(excinfo.traceback) > 2:
+                 for entry in excinfo.traceback[1:-1]:
+                     entry.set_repr_style("short")
+ 
+         def repr_failure(  # type: ignore[override]
+             self, excinfo: ExceptionInfo[BaseException],
+         ) -> Union[str, TerminalRepr]:
+             style = self.config.getoption("tbstyle", "auto")
+             if style == "auto":
+                 style = "long"
+             return self._repr_failure_py(excinfo, style=style)
++
++    # Ensure dynamically-added xfail markers (e.g. request.node.add_marker(pytest.mark.xfail(...)))
++    # affect outcome similarly to static @pytest.mark.xfail markers by exposing markers
++    # via iter_markers() during runtest/reporting. Historically some codepaths relied on
++    # own_markers being populated during obj lookup; make sure any markers added at runtime
++    # to the node are visible by updating own_markers when add_marker is used on the node.
++    def add_marker(self, marker: Mark) -> None:
++        """
++        Compatibility helper: expose a way to add markers to the Function node at runtime.
++        Tests historically used request.node.add_marker(mark) to dynamically mark tests.
++        This method mirrors Collector.add_marker behavior for Function nodes and makes
++        sure own_markers and keywords are updated accordingly.
++        """
++        # normalize and append marker(s)
++        from _pytest.mark.structures import normalize_mark_list
++
++        normalized = normalize_mark_list([marker])
++        self.own_markers.extend(normalized)
++        for m in normalized:
++            # keep keywords in sync (similar to constructor behavior)
++            if m.name not in self.keywords:
++                self.keywords[m.name] = True
 *** End Patch
+----END_FUNCTION_CALL****
 
 No changes detected to generate a patch.

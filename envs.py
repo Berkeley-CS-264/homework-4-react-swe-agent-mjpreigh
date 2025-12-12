@@ -188,6 +188,7 @@ class SWEEnvironment:
         Returns:
             List of file paths containing files where the given string shows up, and the snippet of code of each instance.
         """
+        #cmd = 'grep -r -l "{Show the contents of each file in the given list of file paths}" .'
         num_results = 20          # number of results to show
         print("here 1")
 
@@ -196,12 +197,12 @@ class SWEEnvironment:
             f"--exclude-dir='.*' "
             f"--exclude-dir='__pycache__' "
             f"--exclude-dir='node_modules' "
-            f"-C2 '{content}' | head -n {num_results}"
+            f"-C5 '{content}' | head -n {num_results}"
         )
         res = self.run_bash_cmd(cmd)
         print("search res: " + str(res))
-        return res
-        #results = []
+        #return res
+        results = []
 
         #cmd = f'grep -Rl "{content}"'
         #return self.run_bash_cmd(cmd)

@@ -1,21 +1,22 @@
 diff --git a/django/forms/models.py b/django/forms/models.py
-index dafc11f995..5a9de41502 100644
+index dafc11f995..9977952af8 100644
 --- a/django/forms/models.py
 +++ b/django/forms/models.py
-@@ -1147,7 +1147,15 @@ class ModelChoiceIterator:
- 
-     def __iter__(self):
-         if self.field.empty_label is not None:
--            yield ("", self.field.empty_label)
-+            # Radio widgets have an intrinsic "unfilled" state (no radio selected),
-+            # so rendering an explicit empty choice (e.g. "---------") is
-+            # confusing when the field is required (model.blank is False).
-+            # Avoid adding the empty choice for radio widgets when the field
-+            # is required. For other widgets (e.g. <select>), keep the empty
-+            # choice behavior for compatibility.
-+            widget_input_type = getattr(self.field.widget, 'input_type', None)
-+            if not (widget_input_type == 'radio' and self.field.required):
-+                yield ("", self.field.empty_label)
-         queryset = self.queryset
-         # Can't use iterator() when queryset uses prefetch_related()
-         if not queryset._prefetch_related_lookups:
+@@ -1185,7 +1185,16 @@ class ModelChoiceField(ChoiceField):
+                  required=True, widget=None, label=None, initial=None,
+                  help_text='', to_field_name=None, limit_choices_to=None,
+                  **kwargs):
+-        if required and (initial is not None):
++        # RadioSelect widgets have an inherent unfilled state; don't present
++        # a blank option for required model choice fields when using radios.
++        # We import RadioSelect here to avoid a top-level import cycle.
++        from django.forms.widgets import RadioSelect
++        widget_is_radio = isinstance(widget, RadioSelect) or (
++            isinstance(widget, type) and issubclass(widget, RadioSelect)
++        )
++        if widget_is_radio and required:
++            self.empty_label = None
++        elif required and (initial is not None):
+             self.empty_label = None
+         else:
+             self.empty_label = empty_label

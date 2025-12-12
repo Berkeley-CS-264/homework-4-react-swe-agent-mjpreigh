@@ -1,177 +1,83 @@
-2025-12-12 15:01:21,774 - INFO - Creating container for sympy__sympy-17655...
-2025-12-12 15:01:21,804 - INFO - Container for sympy__sympy-17655 created: 84f10b6d21459616bb425de3bc5cb919f90c54b842461a3d7d90d81f11a2aa4d
-2025-12-12 15:01:21,848 - INFO - Container for sympy__sympy-17655 started: 84f10b6d21459616bb425de3bc5cb919f90c54b842461a3d7d90d81f11a2aa4d
-2025-12-12 15:01:21,848 - INFO - Intermediate patch for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/patch.diff, now applying to container...
-2025-12-12 15:01:21,964 - INFO - >>>>> Applied Patch:
-Checking patch sympy/geometry/entity.py...
+2025-12-12 15:47:49,899 - INFO - Creating container for sympy__sympy-17655...
+2025-12-12 15:47:49,931 - INFO - Container for sympy__sympy-17655 created: d8dfdaab296a592b6baa6316083d33661900fb03be72b4727ce1b9feb23c475a
+2025-12-12 15:47:50,012 - INFO - Container for sympy__sympy-17655 started: d8dfdaab296a592b6baa6316083d33661900fb03be72b4727ce1b9feb23c475a
+2025-12-12 15:47:50,013 - INFO - Intermediate patch for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/patch.diff, now applying to container...
+2025-12-12 15:47:50,098 - INFO - >>>>> Applied Patch:
 Checking patch sympy/geometry/point.py...
-Applied patch sympy/geometry/entity.py cleanly.
 Applied patch sympy/geometry/point.py cleanly.
 
-2025-12-12 15:01:22,242 - INFO - Git diff before:
-diff --git a/sympy/geometry/entity.py b/sympy/geometry/entity.py
-index ee5c910268..2d19ae9cad 100644
---- a/sympy/geometry/entity.py
-+++ b/sympy/geometry/entity.py
-@@ -138,8 +138,37 @@ def __repr__(self):
-         return type(self).__name__ + repr(self.args)
- 
-     def __rmul__(self, a):
--        """Implementation of reverse multiplication method."""
--        return a.__mul__(self)
-+        """Implementation of reverse multiplication method.
-+
-+        Try the left operand's __mul__ first. However, for some SymPy numeric
-+        types (e.g. Float, Integer) __mul__ will produce a Mul expression
-+        containing the GeometryEntity instead of returning NotImplemented.
-+        In that case we should use the GeometryEntity's own __mul__ so that
-+        number * Point behaves the same as Point * number (coordinate-wise
-+        multiplication).
-+        """
-+        try:
-+            res = a.__mul__(self)
-+        except Exception:
-+            # If the left operand's __mul__ raised, fall back to entity's __mul__.
-+            return self.__mul__(a)
-+
-+        # If left operand doesn't know how to handle it, use entity's __mul__.
-+        if res is NotImplemented:
-+            return self.__mul__(a)
-+
-+        # If the left operand returned a Mul that contains this entity,
-+        # prefer the entity's __mul__ (e.g., 2.0*Point(...) should act like
-+        # Point.__mul__).
-+        try:
-+            from sympy.core.mul import Mul
-+            if isinstance(res, Mul) and res.has(self):
-+                return self.__mul__(a)
-+        except Exception:
-+            # If inspection fails for any reason, fall back to left operand's result.
-+            pass
-+
-+        return res
- 
-     def __rsub__(self, a):
-         """Implementation of reverse subtraction method."""
+2025-12-12 15:47:50,350 - INFO - Git diff before:
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..63b419943c 100644
+index 7c978c47be..b060db5aff 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -216,6 +216,29 @@ def __add__(self, other):
+@@ -32,6 +32,7 @@
+ from sympy.core.numbers import Float
+ from sympy.core.evaluate import global_evaluate
+ from sympy.core.add import Add
++from sympy.core.mul import Mul
+ from sympy.utilities.iterables import uniq
+ from sympy.utilities.misc import filldedent, func_name, Undecidable
+ 
+@@ -213,6 +214,19 @@ def __add__(self, other):
+         sympy.geometry.point.Point.translate
+ 
+         """
++        # If other is a Mul that contains a Point factor (e.g. 2*Point(1, 1)),
++        # extract the Point and the remaining scalar factor so that the
++        # multiplication is performed via Point.__mul__ and normalized
++        # properly. This makes scalar*Point behave the same as Point*scalar.
++        if isinstance(other, Mul):
++            # find a Point factor in the Mul's args
++            for f in other.args:
++                if isinstance(f, Point):
++                    # remaining factor is the product of the other args
++                    remaining = Mul(*[g for g in other.args if g is not f])
++                    other = f * remaining
++                    break
++
          try:
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
-+            # If the left operand produced a Mul like (2.0*Point(...)),
-+            # Point(other) above will raise TypeError because it expects a
-+            # sequence of coordinates or a Point.  Detect the common case
-+            # where `other` is a Mul containing a Point factor and handle
-+            # it by delegating to the coordinate-wise multiplication path
-+            # (which Point.__mul__ already implements).
-+            try:
-+                from sympy.core.mul import Mul
-+            except Exception:
-+                Mul = None
-+            if (Mul is not None) and isinstance(other, Mul):
-+                # Separate the Point factor from the scalar factor(s).
-+                pt_factor = None
-+                scalar = S.One
-+                for a in other.args:
-+                    if hasattr(a, 'is_Point') and getattr(a, 'is_Point'):
-+                        pt_factor = a
-+                    else:
-+                        scalar = scalar * a
-+                if pt_factor is not None:
-+                    # use point * scalar (coordinate-wise multiplication)
-+                    return self + (pt_factor * scalar)
-+            # fallback: raise as before
-             raise GeometryError("Don't know how to add {} and a Point object".format(other))
- 
-         coords = [simplify(a + b) for a, b in zip(s, o)]
-2025-12-12 15:01:22,243 - INFO - Eval script for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/eval.sh; copying to container...
-2025-12-12 15:01:33,835 - INFO - Test runtime: 11.55 seconds
-2025-12-12 15:01:33,836 - INFO - Test output for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/test_output.txt
-2025-12-12 15:01:33,913 - INFO - Git diff after:
-diff --git a/sympy/geometry/entity.py b/sympy/geometry/entity.py
-index ee5c910268..2d19ae9cad 100644
---- a/sympy/geometry/entity.py
-+++ b/sympy/geometry/entity.py
-@@ -138,8 +138,37 @@ def __repr__(self):
-         return type(self).__name__ + repr(self.args)
- 
-     def __rmul__(self, a):
--        """Implementation of reverse multiplication method."""
--        return a.__mul__(self)
-+        """Implementation of reverse multiplication method.
-+
-+        Try the left operand's __mul__ first. However, for some SymPy numeric
-+        types (e.g. Float, Integer) __mul__ will produce a Mul expression
-+        containing the GeometryEntity instead of returning NotImplemented.
-+        In that case we should use the GeometryEntity's own __mul__ so that
-+        number * Point behaves the same as Point * number (coordinate-wise
-+        multiplication).
-+        """
-+        try:
-+            res = a.__mul__(self)
-+        except Exception:
-+            # If the left operand's __mul__ raised, fall back to entity's __mul__.
-+            return self.__mul__(a)
-+
-+        # If left operand doesn't know how to handle it, use entity's __mul__.
-+        if res is NotImplemented:
-+            return self.__mul__(a)
-+
-+        # If the left operand returned a Mul that contains this entity,
-+        # prefer the entity's __mul__ (e.g., 2.0*Point(...) should act like
-+        # Point.__mul__).
-+        try:
-+            from sympy.core.mul import Mul
-+            if isinstance(res, Mul) and res.has(self):
-+                return self.__mul__(a)
-+        except Exception:
-+            # If inspection fails for any reason, fall back to left operand's result.
-+            pass
-+
-+        return res
- 
-     def __rsub__(self, a):
-         """Implementation of reverse subtraction method."""
+2025-12-12 15:47:50,351 - INFO - Eval script for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/eval.sh; copying to container...
+2025-12-12 15:48:01,599 - INFO - Test runtime: 11.20 seconds
+2025-12-12 15:48:01,600 - INFO - Test output for sympy__sympy-17655 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/sympy__sympy-17655/test_output.txt
+2025-12-12 15:48:01,683 - INFO - Git diff after:
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..63b419943c 100644
+index 7c978c47be..b060db5aff 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -216,6 +216,29 @@ def __add__(self, other):
+@@ -32,6 +32,7 @@
+ from sympy.core.numbers import Float
+ from sympy.core.evaluate import global_evaluate
+ from sympy.core.add import Add
++from sympy.core.mul import Mul
+ from sympy.utilities.iterables import uniq
+ from sympy.utilities.misc import filldedent, func_name, Undecidable
+ 
+@@ -213,6 +214,19 @@ def __add__(self, other):
+         sympy.geometry.point.Point.translate
+ 
+         """
++        # If other is a Mul that contains a Point factor (e.g. 2*Point(1, 1)),
++        # extract the Point and the remaining scalar factor so that the
++        # multiplication is performed via Point.__mul__ and normalized
++        # properly. This makes scalar*Point behave the same as Point*scalar.
++        if isinstance(other, Mul):
++            # find a Point factor in the Mul's args
++            for f in other.args:
++                if isinstance(f, Point):
++                    # remaining factor is the product of the other args
++                    remaining = Mul(*[g for g in other.args if g is not f])
++                    other = f * remaining
++                    break
++
          try:
              s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
          except TypeError:
-+            # If the left operand produced a Mul like (2.0*Point(...)),
-+            # Point(other) above will raise TypeError because it expects a
-+            # sequence of coordinates or a Point.  Detect the common case
-+            # where `other` is a Mul containing a Point factor and handle
-+            # it by delegating to the coordinate-wise multiplication path
-+            # (which Point.__mul__ already implements).
-+            try:
-+                from sympy.core.mul import Mul
-+            except Exception:
-+                Mul = None
-+            if (Mul is not None) and isinstance(other, Mul):
-+                # Separate the Point factor from the scalar factor(s).
-+                pt_factor = None
-+                scalar = S.One
-+                for a in other.args:
-+                    if hasattr(a, 'is_Point') and getattr(a, 'is_Point'):
-+                        pt_factor = a
-+                    else:
-+                        scalar = scalar * a
-+                if pt_factor is not None:
-+                    # use point * scalar (coordinate-wise multiplication)
-+                    return self + (pt_factor * scalar)
-+            # fallback: raise as before
-             raise GeometryError("Don't know how to add {} and a Point object".format(other))
- 
-         coords = [simplify(a + b) for a, b in zip(s, o)]
-2025-12-12 15:01:33,913 - INFO - Grading answer for sympy__sympy-17655...
-2025-12-12 15:01:33,914 - INFO - report: {'sympy__sympy-17655': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_point', 'test_point3D'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_Point2D', 'test_issue_9214', 'test_issue_11617', 'test_transform', 'test_concyclic_doctest_bug', 'test_arguments', 'test_unit', 'test_dot', 'test__normalize_dimension'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
-Result for sympy__sympy-17655: resolved: True
-2025-12-12 15:01:33,915 - INFO - Attempting to stop container sweb.eval.sympy__sympy-17655.my_evaluation_run...
-2025-12-12 15:01:49,033 - INFO - Attempting to remove container sweb.eval.sympy__sympy-17655.my_evaluation_run...
-2025-12-12 15:01:49,056 - INFO - Container sweb.eval.sympy__sympy-17655.my_evaluation_run removed.
+2025-12-12 15:48:01,683 - INFO - Grading answer for sympy__sympy-17655...
+2025-12-12 15:48:01,684 - INFO - report: {'sympy__sympy-17655': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_point', 'test_point3D']}, 'PASS_TO_PASS': {'success': ['test_Point2D', 'test_issue_9214', 'test_issue_11617', 'test_transform', 'test_concyclic_doctest_bug', 'test_arguments', 'test_unit', 'test_dot', 'test__normalize_dimension'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sympy__sympy-17655: resolved: False
+2025-12-12 15:48:01,685 - INFO - Attempting to stop container sweb.eval.sympy__sympy-17655.my_evaluation_run...
+2025-12-12 15:48:16,811 - INFO - Attempting to remove container sweb.eval.sympy__sympy-17655.my_evaluation_run...
+2025-12-12 15:48:16,829 - INFO - Container sweb.eval.sympy__sympy-17655.my_evaluation_run removed.

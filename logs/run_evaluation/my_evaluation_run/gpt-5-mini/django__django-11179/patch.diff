@@ -1,14 +1,28 @@
 diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
-index 92fe4affb9..b798238e88 100644
+index 92fe4affb9..c262dede3e 100644
 --- a/django/db/models/deletion.py
 +++ b/django/db/models/deletion.py
-@@ -277,6 +277,9 @@ class Collector:
-             if self.can_fast_delete(instance):
-                 with transaction.mark_for_rollback_on_error():
-                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-+                # Clear the instance PK like in the full delete path so that
-+                # instance.delete() results in instance.pk being None.
-+                setattr(instance, model._meta.pk.attname, None)
-                 return count, {model._meta.label: count}
+@@ -272,12 +272,17 @@ class Collector:
+         deleted_counter = Counter()
+ 
+         # Optimize for the case with a single obj and no dependencies
+-        if len(self.data) == 1 and len(instances) == 1:
+-            instance = list(instances)[0]
+-            if self.can_fast_delete(instance):
+-                with transaction.mark_for_rollback_on_error():
+-                    count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
+-                return count, {model._meta.label: count}
++        if len(self.data) == 1:
++            # get the single (model, instances) pair
++            model, instances = next(iter(self.data.items()))
++            if len(instances) == 1:
++                instance = instances[0]
++                if self.can_fast_delete(instance):
++                    with transaction.mark_for_rollback_on_error():
++                        count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
++                    # Update the instance primary key to None to reflect deletion
++                    setattr(instance, model._meta.pk.attname, None)
++                    return count, {model._meta.label: count}
  
          with transaction.atomic(using=self.using, savepoint=False):
+             # send pre_delete signals

@@ -1,58 +1,13 @@
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..464cb76e9 100644
+index de3fb01d1..cceaeb957 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -528,16 +528,43 @@ class InheritDocstrings(type):
+@@ -528,7 +528,7 @@ class InheritDocstrings(type):
                  not key.startswith('_'))
  
          for key, val in dct.items():
 -            if (inspect.isfunction(val) and
--                is_public_member(key) and
--                val.__doc__ is None):
--                for base in cls.__mro__[1:]:
--                    super_method = getattr(base, key, None)
--                    if super_method is not None:
--                        val.__doc__ = super_method.__doc__
--                        break
--
--        super().__init__(name, bases, dct)
-+            if not is_public_member(key):
-+                continue
-+
-+            # Plain functions: inherit docstring if missing
-+            if inspect.isfunction(val):
-+                if val.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_method = getattr(base, key, None)
-+                        if super_method is not None:
-+                            val.__doc__ = super_method.__doc__
-+                            break
-+
-+            # Properties: create a new property with inherited docstring
-+            elif isinstance(val, property):
-+                if val.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_method = getattr(base, key, None)
-+                        if super_method is not None:
-+                            doc = getattr(super_method, '__doc__', None)
-+                            if doc:
-+                                new_prop = property(val.fget, val.fset, val.fdel, doc)
-+                                # set on the class so the descriptor is updated
-+                                setattr(cls, key, new_prop)
-+                                break
-+
-+            # classmethod/staticmethod: update the underlying function's docstring
-+            elif isinstance(val, (classmethod, staticmethod)):
-+                func = val.__func__
-+                if func.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_method = getattr(base, key, None)
-+                        if super_method is not None:
-+                            doc = getattr(super_method, '__doc__', None)
-+                            if doc:
-+                                func.__doc__ = doc
-+                                break
-+
- 
- 
- class OrderedDescriptor(metaclass=abc.ABCMeta):
++            if ((inspect.isfunction(val) or isinstance(val, property)) and
+                 is_public_member(key) and
+                 val.__doc__ is None):
+                 for base in cls.__mro__[1:]:

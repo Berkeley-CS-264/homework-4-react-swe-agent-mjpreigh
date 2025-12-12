@@ -1,47 +1,75 @@
-2025-12-12 15:00:38,276 - INFO - Creating container for django__django-11179...
-2025-12-12 15:00:38,392 - INFO - Container for django__django-11179 created: 15ea640b4e74a073686ef13163e237034c226a236f04b8934b8c4ca68cf0f0a2
-2025-12-12 15:00:38,527 - INFO - Container for django__django-11179 started: 15ea640b4e74a073686ef13163e237034c226a236f04b8934b8c4ca68cf0f0a2
-2025-12-12 15:00:38,527 - INFO - Intermediate patch for django__django-11179 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-11179/patch.diff, now applying to container...
-2025-12-12 15:00:38,713 - INFO - >>>>> Applied Patch:
+2025-12-12 15:47:06,600 - INFO - Creating container for django__django-11179...
+2025-12-12 15:47:06,656 - INFO - Container for django__django-11179 created: a9f33f3dd3ceea848f65798a71254063f47b4dbae97cdce76049f2735c7648fe
+2025-12-12 15:47:06,797 - INFO - Container for django__django-11179 started: a9f33f3dd3ceea848f65798a71254063f47b4dbae97cdce76049f2735c7648fe
+2025-12-12 15:47:06,797 - INFO - Intermediate patch for django__django-11179 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-11179/patch.diff, now applying to container...
+2025-12-12 15:47:06,983 - INFO - >>>>> Applied Patch:
 Checking patch django/db/models/deletion.py...
 Applied patch django/db/models/deletion.py cleanly.
 
-2025-12-12 15:00:39,231 - INFO - Git diff before:
+2025-12-12 15:47:07,479 - INFO - Git diff before:
 diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
-index 92fe4affb9..b798238e88 100644
+index 92fe4affb9..c262dede3e 100644
 --- a/django/db/models/deletion.py
 +++ b/django/db/models/deletion.py
-@@ -277,6 +277,9 @@ class Collector:
-             if self.can_fast_delete(instance):
-                 with transaction.mark_for_rollback_on_error():
-                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-+                # Clear the instance PK like in the full delete path so that
-+                # instance.delete() results in instance.pk being None.
-+                setattr(instance, model._meta.pk.attname, None)
-                 return count, {model._meta.label: count}
+@@ -272,12 +272,17 @@ class Collector:
+         deleted_counter = Counter()
+ 
+         # Optimize for the case with a single obj and no dependencies
+-        if len(self.data) == 1 and len(instances) == 1:
+-            instance = list(instances)[0]
+-            if self.can_fast_delete(instance):
+-                with transaction.mark_for_rollback_on_error():
+-                    count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
+-                return count, {model._meta.label: count}
++        if len(self.data) == 1:
++            # get the single (model, instances) pair
++            model, instances = next(iter(self.data.items()))
++            if len(instances) == 1:
++                instance = instances[0]
++                if self.can_fast_delete(instance):
++                    with transaction.mark_for_rollback_on_error():
++                        count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
++                    # Update the instance primary key to None to reflect deletion
++                    setattr(instance, model._meta.pk.attname, None)
++                    return count, {model._meta.label: count}
  
          with transaction.atomic(using=self.using, savepoint=False):
-2025-12-12 15:00:39,231 - INFO - Eval script for django__django-11179 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-11179/eval.sh; copying to container...
-2025-12-12 15:00:51,938 - INFO - Test runtime: 12.66 seconds
-2025-12-12 15:00:51,939 - INFO - Test output for django__django-11179 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-11179/test_output.txt
-2025-12-12 15:00:52,031 - INFO - Git diff after:
+             # send pre_delete signals
+2025-12-12 15:47:07,479 - INFO - Eval script for django__django-11179 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-11179/eval.sh; copying to container...
+2025-12-12 15:47:19,976 - INFO - Test runtime: 12.45 seconds
+2025-12-12 15:47:19,977 - INFO - Test output for django__django-11179 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-11179/test_output.txt
+2025-12-12 15:47:20,068 - INFO - Git diff after:
 diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
-index 92fe4affb9..b798238e88 100644
+index 92fe4affb9..c262dede3e 100644
 --- a/django/db/models/deletion.py
 +++ b/django/db/models/deletion.py
-@@ -277,6 +277,9 @@ class Collector:
-             if self.can_fast_delete(instance):
-                 with transaction.mark_for_rollback_on_error():
-                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-+                # Clear the instance PK like in the full delete path so that
-+                # instance.delete() results in instance.pk being None.
-+                setattr(instance, model._meta.pk.attname, None)
-                 return count, {model._meta.label: count}
+@@ -272,12 +272,17 @@ class Collector:
+         deleted_counter = Counter()
+ 
+         # Optimize for the case with a single obj and no dependencies
+-        if len(self.data) == 1 and len(instances) == 1:
+-            instance = list(instances)[0]
+-            if self.can_fast_delete(instance):
+-                with transaction.mark_for_rollback_on_error():
+-                    count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
+-                return count, {model._meta.label: count}
++        if len(self.data) == 1:
++            # get the single (model, instances) pair
++            model, instances = next(iter(self.data.items()))
++            if len(instances) == 1:
++                instance = instances[0]
++                if self.can_fast_delete(instance):
++                    with transaction.mark_for_rollback_on_error():
++                        count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
++                    # Update the instance primary key to None to reflect deletion
++                    setattr(instance, model._meta.pk.attname, None)
++                    return count, {model._meta.label: count}
  
          with transaction.atomic(using=self.using, savepoint=False):
-2025-12-12 15:00:52,031 - INFO - Grading answer for django__django-11179...
-2025-12-12 15:00:52,031 - INFO - report: {'django__django-11179': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_fast_delete_instance_set_pk_none (delete.tests.FastDeleteTests)'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_fast_delete_empty_no_update_can_self_select (delete.tests.FastDeleteTests)', 'test_fast_delete_fk (delete.tests.FastDeleteTests)', 'test_fast_delete_inheritance (delete.tests.FastDeleteTests)', 'test_fast_delete_joined_qs (delete.tests.FastDeleteTests)', 'test_fast_delete_large_batch (delete.tests.FastDeleteTests)', 'test_fast_delete_m2m (delete.tests.FastDeleteTests)', 'test_fast_delete_qs (delete.tests.FastDeleteTests)', 'test_fast_delete_revm2m (delete.tests.FastDeleteTests)', 'test_auto (delete.tests.OnDeleteTests)', 'test_auto_nullable (delete.tests.OnDeleteTests)', 'test_cascade (delete.tests.OnDeleteTests)', 'test_cascade_from_child (delete.tests.OnDeleteTests)', 'test_cascade_from_parent (delete.tests.OnDeleteTests)', 'test_cascade_nullable (delete.tests.OnDeleteTests)', 'test_do_nothing (delete.tests.OnDeleteTests)', 'test_do_nothing_qscount (delete.tests.OnDeleteTests)', 'test_inheritance_cascade_down (delete.tests.OnDeleteTests)', 'test_inheritance_cascade_up (delete.tests.OnDeleteTests)', 'test_o2o_setnull (delete.tests.OnDeleteTests)', 'test_protect (delete.tests.OnDeleteTests)', 'test_setdefault (delete.tests.OnDeleteTests)', 'test_setdefault_none (delete.tests.OnDeleteTests)', 'test_setnull (delete.tests.OnDeleteTests)', 'test_setnull_from_child (delete.tests.OnDeleteTests)', 'test_setnull_from_parent (delete.tests.OnDeleteTests)', 'test_setvalue (delete.tests.OnDeleteTests)', 'test_bulk (delete.tests.DeletionTests)', 'test_can_defer_constraint_checks (delete.tests.DeletionTests)', 'test_delete_with_keeping_parents (delete.tests.DeletionTests)', 'test_delete_with_keeping_parents_relationships (delete.tests.DeletionTests)', 'test_deletion_order (delete.tests.DeletionTests)', 'test_hidden_related (delete.tests.DeletionTests)', 'test_instance_update (delete.tests.DeletionTests)', 'test_large_delete (delete.tests.DeletionTests)', 'test_large_delete_related (delete.tests.DeletionTests)', 'test_m2m (delete.tests.DeletionTests)', 'test_model_delete_returns_num_rows (delete.tests.DeletionTests)', 'test_proxied_model_duplicate_queries (delete.tests.DeletionTests)', 'test_queryset_delete_returns_num_rows (delete.tests.DeletionTests)', 'test_relational_post_delete_signals_happen_before_parent_object (delete.tests.DeletionTests)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+             # send pre_delete signals
+2025-12-12 15:47:20,068 - INFO - Grading answer for django__django-11179...
+2025-12-12 15:47:20,069 - INFO - report: {'django__django-11179': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_fast_delete_instance_set_pk_none (delete.tests.FastDeleteTests)'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_fast_delete_empty_no_update_can_self_select (delete.tests.FastDeleteTests)', 'test_fast_delete_fk (delete.tests.FastDeleteTests)', 'test_fast_delete_inheritance (delete.tests.FastDeleteTests)', 'test_fast_delete_joined_qs (delete.tests.FastDeleteTests)', 'test_fast_delete_large_batch (delete.tests.FastDeleteTests)', 'test_fast_delete_m2m (delete.tests.FastDeleteTests)', 'test_fast_delete_qs (delete.tests.FastDeleteTests)', 'test_fast_delete_revm2m (delete.tests.FastDeleteTests)', 'test_auto (delete.tests.OnDeleteTests)', 'test_auto_nullable (delete.tests.OnDeleteTests)', 'test_cascade (delete.tests.OnDeleteTests)', 'test_cascade_from_child (delete.tests.OnDeleteTests)', 'test_cascade_from_parent (delete.tests.OnDeleteTests)', 'test_cascade_nullable (delete.tests.OnDeleteTests)', 'test_do_nothing (delete.tests.OnDeleteTests)', 'test_do_nothing_qscount (delete.tests.OnDeleteTests)', 'test_inheritance_cascade_down (delete.tests.OnDeleteTests)', 'test_inheritance_cascade_up (delete.tests.OnDeleteTests)', 'test_o2o_setnull (delete.tests.OnDeleteTests)', 'test_protect (delete.tests.OnDeleteTests)', 'test_setdefault (delete.tests.OnDeleteTests)', 'test_setdefault_none (delete.tests.OnDeleteTests)', 'test_setnull (delete.tests.OnDeleteTests)', 'test_setnull_from_child (delete.tests.OnDeleteTests)', 'test_setnull_from_parent (delete.tests.OnDeleteTests)', 'test_setvalue (delete.tests.OnDeleteTests)', 'test_bulk (delete.tests.DeletionTests)', 'test_can_defer_constraint_checks (delete.tests.DeletionTests)', 'test_delete_with_keeping_parents (delete.tests.DeletionTests)', 'test_delete_with_keeping_parents_relationships (delete.tests.DeletionTests)', 'test_deletion_order (delete.tests.DeletionTests)', 'test_hidden_related (delete.tests.DeletionTests)', 'test_instance_update (delete.tests.DeletionTests)', 'test_large_delete (delete.tests.DeletionTests)', 'test_large_delete_related (delete.tests.DeletionTests)', 'test_m2m (delete.tests.DeletionTests)', 'test_model_delete_returns_num_rows (delete.tests.DeletionTests)', 'test_proxied_model_duplicate_queries (delete.tests.DeletionTests)', 'test_queryset_delete_returns_num_rows (delete.tests.DeletionTests)', 'test_relational_post_delete_signals_happen_before_parent_object (delete.tests.DeletionTests)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for django__django-11179: resolved: True
-2025-12-12 15:00:52,032 - INFO - Attempting to stop container sweb.eval.django__django-11179.my_evaluation_run...
-2025-12-12 15:01:07,133 - INFO - Attempting to remove container sweb.eval.django__django-11179.my_evaluation_run...
-2025-12-12 15:01:07,149 - INFO - Container sweb.eval.django__django-11179.my_evaluation_run removed.
+2025-12-12 15:47:20,070 - INFO - Attempting to stop container sweb.eval.django__django-11179.my_evaluation_run...
+2025-12-12 15:47:35,165 - INFO - Attempting to remove container sweb.eval.django__django-11179.my_evaluation_run...
+2025-12-12 15:47:35,183 - INFO - Container sweb.eval.django__django-11179.my_evaluation_run removed.

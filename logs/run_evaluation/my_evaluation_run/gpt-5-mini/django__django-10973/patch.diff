@@ -1,61 +1,19 @@
 diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
-index 7fca6eff30..e623a041f0 100644
+index 7fca6eff30..f9f8386f39 100644
 --- a/django/db/backends/postgresql/client.py
 +++ b/django/db/backends/postgresql/client.py
-@@ -2,7 +2,6 @@ import os
- import signal
- import subprocess
- 
--from django.core.files.temp import NamedTemporaryFile
- from django.db.backends.base.client import BaseDatabaseClient
- 
- 
-@@ -34,38 +33,23 @@ class DatabaseClient(BaseDatabaseClient):
-             args += ['-p', str(port)]
-         args += [dbname]
- 
--        temp_pgpass = None
-+        # Prepare a custom environment for the subprocess so we don't need to
-+        # rely on global os.environ side effects. Use PGPASSWORD if a password
-+        # is provided. Keep SIGINT handling behavior (ignored in Python so it's
-+        # passed to the child process).
-+        env = os.environ.copy()
-+        if passwd:
-+            env['PGPASSWORD'] = passwd
-         sigint_handler = signal.getsignal(signal.SIGINT)
-         try:
--            if passwd:
--                # Create temporary .pgpass file.
--                temp_pgpass = NamedTemporaryFile(mode='w+')
--                try:
--                    print(
--                        _escape_pgpass(host) or '*',
--                        str(port) or '*',
--                        _escape_pgpass(dbname) or '*',
--                        _escape_pgpass(user) or '*',
--                        _escape_pgpass(passwd),
--                        file=temp_pgpass,
--                        sep=':',
--                        flush=True,
--                    )
--                    os.environ['PGPASSFILE'] = temp_pgpass.name
--                except UnicodeEncodeError:
--                    # If the current locale can't encode the data, let the
--                    # user input the password manually.
--                    pass
+@@ -58,7 +58,13 @@ class DatabaseClient(BaseDatabaseClient):
+                     pass
              # Allow SIGINT to pass to psql to abort queries.
              signal.signal(signal.SIGINT, signal.SIG_IGN)
 -            subprocess.check_call(args)
-+            # Use subprocess.run with check=True to mirror check_call behavior
-+            # while allowing us to pass a custom environment.
-+            subprocess.run(args, env=env, check=True)
++            # Use subprocess.run so we can pass a modified environment.
++            env = os.environ.copy()
++            if passwd:
++                # Passing the password via PGPASSWORD is more reliable than
++                # relying on external .pgpass files in some environments.
++                env['PGPASSWORD'] = passwd
++            subprocess.run(args, check=True, env=env)
          finally:
              # Restore the original SIGINT handler.
              signal.signal(signal.SIGINT, sigint_handler)
--            if temp_pgpass:
--                temp_pgpass.close()
--                if 'PGPASSFILE' in os.environ:  # unit tests need cleanup
--                    del os.environ['PGPASSFILE']
- 
-     def runshell(self):
-         DatabaseClient.runshell_db(self.connection.get_connection_params())

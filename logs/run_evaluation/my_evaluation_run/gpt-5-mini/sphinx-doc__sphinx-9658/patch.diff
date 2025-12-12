@@ -1,92 +1,58 @@
 diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
-index 87707d48f..cbe5522da 100644
+index 87707d48f..aa83ca0a0 100644
 --- a/sphinx/util/typing.py
 +++ b/sphinx/util/typing.py
-@@ -50,6 +50,24 @@ INVALID_BUILTIN_CLASSES = {
- }
- 
- 
-+def _format_pyrole(role: str, module: str, name: str, tilde: bool = False) -> str:
-+    """Format a Sphinx py:role reference safely.
-+    If name is falsy, fall back to the module only (avoid producing a trailing dot).
-+    """
-+    # prefer name if provided
-+    if name:
-+        if tilde:
-+            return f':py:{role}:`~{module}.{name}`'
-+        else:
-+            return f':py:{role}:`{module}.{name}`'
-+    else:
-+        # no name available -> fall back to module only
-+        if tilde:
-+            return f':py:{role}:`~{module}`'
-+        else:
-+            return f':py:{role}:`{module}`'
-+
-+
- # Text like nodes which are initialized with text and rawsource
- TextlikeNode = Union[nodes.Text, nodes.TextElement]
- 
-@@ -168,9 +186,9 @@ def _restify_py37(cls: Optional[Type]) -> str:
-             text = restify(cls.__origin__)  # type: ignore
-         elif getattr(cls, '_name', None):
-             if cls.__module__ == 'typing':
--                text = ':py:class:`~%s.%s`' % (cls.__module__, cls._name)
-+                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=True)
-             else:
--                text = ':py:class:`%s.%s`' % (cls.__module__, cls._name)
-+                text = _format_pyrole('class', cls.__module__, getattr(cls, '_name', None), tilde=False)
-         else:
-             text = restify(cls.__origin__)
- 
-@@ -190,12 +208,12 @@ def _restify_py37(cls: Optional[Type]) -> str:
- 
-         return text
+@@ -192,10 +192,24 @@ def _restify_py37(cls: Optional[Type]) -> str:
      elif isinstance(cls, typing._SpecialForm):
--        return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
-+        return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
+         return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
      elif hasattr(cls, '__qualname__'):
++        # Some mocked or broken objects may have an empty __qualname__. Fall back to
++        # other attributes (__name__, __display_name__) to avoid producing a
++        # trailing dot like "module.".
++        qual = getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None)
++        if not qual:
++            display = getattr(cls, '__display_name__', None)
++            if display:
++                # If display looks fully-qualified already, just use it.
++                if '.' in display:
++                    return ':py:class:`%s`' % display
++                qual = display
++            else:
++                qual = ''
++
          if cls.__module__ == 'typing':
 -            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
++            return ':py:class:`~%s.%s`' % (cls.__module__, qual)
          else:
 -            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
++            return ':py:class:`%s.%s`' % (cls.__module__, qual)
      elif isinstance(cls, ForwardRef):
          return ':py:class:`%s`' % cls.__forward_arg__
      else:
-@@ -203,7 +221,7 @@ def _restify_py37(cls: Optional[Type]) -> str:
-         if cls.__module__ == 'typing':
-             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
+@@ -274,10 +288,24 @@ def _restify_py36(cls: Optional[Type]) -> str:
          else:
--            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
- 
- 
- def _restify_py36(cls: Optional[Type]) -> str:
-@@ -275,13 +293,13 @@ def _restify_py36(cls: Optional[Type]) -> str:
              return ':py:obj:`Union`'
      elif hasattr(cls, '__qualname__'):
++        # Some mocked or broken objects may have an empty __qualname__. Fall back to
++        # other attributes (__name__, __display_name__) to avoid producing a
++        # trailing dot like "module.".
++        qual = getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None)
++        if not qual:
++            display = getattr(cls, '__display_name__', None)
++            if display:
++                # If display looks fully-qualified already, just use it.
++                if '.' in display:
++                    return ':py:class:`%s`' % display
++                qual = display
++            else:
++                qual = ''
++
          if cls.__module__ == 'typing':
 -            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=True)
++            return ':py:class:`~%s.%s`' % (cls.__module__, qual)
          else:
 -            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-+            return _format_pyrole('class', cls.__module__, getattr(cls, '__qualname__', None) or getattr(cls, '__name__', None), tilde=False)
++            return ':py:class:`%s.%s`' % (cls.__module__, qual)
      elif hasattr(cls, '_name'):
          # SpecialForm
-         if cls.__module__ == 'typing':
--            return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
-+            return _format_pyrole('obj', cls.__module__, getattr(cls, '_name', None), tilde=True)
-         else:
-             return ':py:obj:`%s.%s`' % (cls.__module__, cls._name)
-     elif hasattr(cls, '__name__'):
-@@ -289,7 +307,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
-         if cls.__module__ == 'typing':
-             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-         else:
--            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            return _format_pyrole('obj', cls.__module__, getattr(cls, '__name__', None), tilde=False)
-     else:
-         # others (ex. Any)
          if cls.__module__ == 'typing':

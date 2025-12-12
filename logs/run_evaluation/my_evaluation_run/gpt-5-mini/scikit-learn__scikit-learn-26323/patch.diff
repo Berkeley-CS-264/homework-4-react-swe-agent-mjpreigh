@@ -1,8 +1,8 @@
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..83ee20cf1 100644
+index 4eddd12b1..9635ada01 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -293,14 +293,30 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+@@ -293,18 +293,31 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
              Estimator instance.
          """
          super().set_output(transform=transform)
@@ -15,29 +15,30 @@ index 4eddd12b1..83ee20cf1 100644
 -        )
 -        for trans in transformers:
 +
-+        # Collect all transformers the user provided (unfitted), any fitted
-+        # transformers (transformers_), and also the remainder estimator when it
-+        # is an estimator (and not one of the special strings). This ensures
-+        # that calling set_output before fit also configures the remainder.
-+        transformers_list = []
-+        transformers_list.extend(list(self.transformers))
-+        transformers_list.extend(list(getattr(self, "transformers_", [])))
-+
-+        # If remainder is an estimator (and not 'passthrough' or 'drop'),
-+        # include it when not already present. We use the name 'remainder'
-+        # to avoid duplicating when transformers_ already contains it.
-+        try:
-+            remainder = self.remainder
-+        except AttributeError:
-+            remainder = None
-+
-+        if remainder is not None and remainder not in {"passthrough", "drop"}:
-+            if not any(name == "remainder" for name, _, *_ in transformers_list):
-+                transformers_list.append(("remainder", remainder, None))
-+
-+        for _, trans, _ in transformers_list:
-+            if trans in {"passthrough", "drop"}:
++        # Collect transformers from both the user-specified list and the fitted
++        # transformers (if present). Ensure we set_output for the remainder
++        # estimator as well when it is provided as an estimator on the
++        # unfitted ColumnTransformer.
++        seen = []
++        for _, trans, _ in chain(self.transformers, getattr(self, "transformers_", [])):
++            if trans in ("passthrough", "drop"):
++                continue
++            # Avoid setting output multiple times for the same object.
++            if any(t is trans for t in seen):
 +                continue
              _safe_set_output(trans, transform=transform)
++            seen.append(trans)
++
++        # If remainder is an estimator provided on the unfitted ColumnTransformer,
++        # make sure to configure its output as well.
++        if hasattr(self, "remainder") and self.remainder not in ("passthrough", "drop"):
++            # Avoid duplicate if the same estimator object was already handled.
++            if not any(t is self.remainder for t in seen):
++                _safe_set_output(self.remainder, transform=transform)
  
          return self
+ 
++
+     def get_params(self, deep=True):
+         """Get parameters for this estimator.
+ 

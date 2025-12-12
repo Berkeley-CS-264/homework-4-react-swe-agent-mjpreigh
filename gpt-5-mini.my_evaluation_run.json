@@ -1,11 +1,11 @@
 {
     "total_instances": 20,
     "submitted_instances": 20,
-    "completed_instances": 17,
+    "completed_instances": 19,
     "resolved_instances": 11,
-    "unresolved_instances": 6,
+    "unresolved_instances": 8,
     "empty_patch_instances": 0,
-    "error_instances": 3,
+    "error_instances": 1,
     "completed_ids": [
         "astropy__astropy-7166",
         "django__django-10973",
@@ -21,6 +21,8 @@
         "psf__requests-1921",
         "psf__requests-2931",
         "scikit-learn__scikit-learn-26323",
+        "sphinx-doc__sphinx-7590",
+        "sphinx-doc__sphinx-9230",
         "sphinx-doc__sphinx-9658",
         "sympy__sympy-17655",
         "sympy__sympy-24213"
@@ -57,9 +59,9 @@
         "django__django-14053",
         "django__django-16662",
         "django__django-7530",
-        "psf__requests-2931",
         "scikit-learn__scikit-learn-26323",
-        "sympy__sympy-17655",
+        "sphinx-doc__sphinx-9230",
+        "sphinx-doc__sphinx-9658",
         "sympy__sympy-24213"
     ],
     "unresolved_ids": [
@@ -68,12 +70,12 @@
         "django__django-14011",
         "django__django-16631",
         "psf__requests-1921",
-        "sphinx-doc__sphinx-9658"
+        "psf__requests-2931",
+        "sphinx-doc__sphinx-7590",
+        "sympy__sympy-17655"
     ],
     "error_ids": [
-        "pytest-dev__pytest-7490",
-        "sphinx-doc__sphinx-7590",
-        "sphinx-doc__sphinx-9230"
+        "pytest-dev__pytest-7490"
     ],
     "schema_version": 2
 }

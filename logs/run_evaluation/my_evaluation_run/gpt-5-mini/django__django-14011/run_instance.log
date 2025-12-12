@@ -1,53 +1,36 @@
-2025-12-12 15:00:38,276 - INFO - Creating container for django__django-14011...
-2025-12-12 15:00:38,430 - INFO - Container for django__django-14011 created: 12714988a620900bdef0d8f5cb2396fee2c5f6dc0da39cf139943045785f9939
-2025-12-12 15:00:38,574 - INFO - Container for django__django-14011 started: 12714988a620900bdef0d8f5cb2396fee2c5f6dc0da39cf139943045785f9939
-2025-12-12 15:00:38,575 - INFO - Intermediate patch for django__django-14011 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14011/patch.diff, now applying to container...
-2025-12-12 15:00:38,747 - INFO - >>>>> Applied Patch:
-Checking patch django/core/servers/basehttp.py...
-Applied patch django/core/servers/basehttp.py cleanly.
+2025-12-12 15:47:06,601 - INFO - Creating container for django__django-14011...
+2025-12-12 15:47:06,683 - INFO - Container for django__django-14011 created: 5e9b84b729abaa829cbd0d701398cfbdd885a9a2d8630a8549ad3eba848abedb
+2025-12-12 15:47:06,823 - INFO - Container for django__django-14011 started: 5e9b84b729abaa829cbd0d701398cfbdd885a9a2d8630a8549ad3eba848abedb
+2025-12-12 15:47:06,823 - INFO - Intermediate patch for django__django-14011 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14011/patch.diff, now applying to container...
+2025-12-12 15:47:06,993 - INFO - >>>>> Applied Patch:
+Checking patch django/test/testcases.py...
+Applied patch django/test/testcases.py cleanly.
 
-2025-12-12 15:00:39,320 - INFO - Git diff before:
-diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
-index 14dab517c9..7bea6b8cc6 100644
---- a/django/core/servers/basehttp.py
-+++ b/django/core/servers/basehttp.py
-@@ -79,7 +79,11 @@ class WSGIServer(simple_server.WSGIServer):
- 
- class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
-     """A threaded version of the WSGIServer"""
--    daemon_threads = True
-+    # Use non-daemon worker threads so the server waits for them to finish
-+    # during shutdown. Daemon threads may be terminated abruptly which can
-+    # prevent per-thread cleanup (for example, closing DB connections),
-+    # leading to issues when tearing down test databases.
-+    daemon_threads = False
+2025-12-12 15:47:07,541 - INFO - Git diff before:
+diff --git a/django/test/testcases.py b/django/test/testcases.py
+index 92f566b7b0..15481f0287 100644
+--- a/django/test/testcases.py
++++ b/django/test/testcases.py
+@@ -1526,6 +1526,10 @@ class LiveServerThread(threading.Thread):
+             self.httpd.shutdown()
+             self.httpd.server_close()
+         self.join()
++        # Ensure all database connections are closed after the live server
++        # thread has stopped, to avoid race conditions where database
++        # destruction fails because other threads still hold connections.
++        connections.close_all()
  
  
- class ServerHandler(simple_server.ServerHandler):
-2025-12-12 15:00:39,321 - INFO - Eval script for django__django-14011 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14011/eval.sh; copying to container...
-2025-12-12 15:00:45,772 - INFO - Test runtime: 6.40 seconds
-2025-12-12 15:00:45,773 - INFO - Test output for django__django-14011 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14011/test_output.txt
-2025-12-12 15:00:45,864 - INFO - Git diff after:
-diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
-index 14dab517c9..7bea6b8cc6 100644
---- a/django/core/servers/basehttp.py
-+++ b/django/core/servers/basehttp.py
-@@ -79,7 +79,11 @@ class WSGIServer(simple_server.WSGIServer):
- 
- class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
-     """A threaded version of the WSGIServer"""
--    daemon_threads = True
-+    # Use non-daemon worker threads so the server waits for them to finish
-+    # during shutdown. Daemon threads may be terminated abruptly which can
-+    # prevent per-thread cleanup (for example, closing DB connections),
-+    # leading to issues when tearing down test databases.
-+    daemon_threads = False
- 
- 
- class ServerHandler(simple_server.ServerHandler):
-2025-12-12 15:00:45,864 - INFO - Grading answer for django__django-14011...
-2025-12-12 15:00:45,866 - INFO - report: {'django__django-14011': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_live_server_url_is_class_property (servers.tests.LiveServerAddress)', 'Data written to the database by a view can be read.', 'Fixtures are properly loaded and visible to the live server thread.', 'test_check_model_instance_from_subview (servers.tests.LiveServerThreadedTests)', 'test_view_calls_subview (servers.tests.LiveServerThreadedTests)', 'test_404 (servers.tests.LiveServerViews)', 'A HTTP 1.1 server is supposed to support keep-alive. Since our', 'test_environ (servers.tests.LiveServerViews)', 'test_keep_alive_connection_clears_previous_request_data (servers.tests.LiveServerViews)', 'See `test_closes_connection_without_content_length` for details. This', 'test_media_files (servers.tests.LiveServerViews)', 'LiveServerTestCase reports a 404 status code when HTTP client', 'Launched server serves with HTTP 1.1.', 'test_static_files (servers.tests.LiveServerViews)', 'test_view (servers.tests.LiveServerViews)', 'Each LiveServerTestCase binds to a unique port or fails to start a', "LiveServerTestCase.port customizes the server's port."]}, 'PASS_TO_PASS': {'success': ['test_set_up_class (servers.tests.LiveServerTestCaseSetupTest)', 'Contrast to'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+ class LiveServerTestCase(TransactionTestCase):
+2025-12-12 15:47:07,542 - INFO - Eval script for django__django-14011 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14011/eval.sh; copying to container...
+2025-12-12 15:47:13,930 - INFO - Test runtime: 6.35 seconds
+2025-12-12 15:47:13,930 - INFO - Test output for django__django-14011 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/django__django-14011/test_output.txt
+2025-12-12 15:47:14,004 - INFO - Git diff after:
+
+2025-12-12 15:47:14,004 - INFO - Git diff changed after running eval script
+2025-12-12 15:47:14,004 - INFO - Grading answer for django__django-14011...
+2025-12-12 15:47:14,005 - INFO - report: {'django__django-14011': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_live_server_url_is_class_property (servers.tests.LiveServerAddress)', 'Data written to the database by a view can be read.', 'Fixtures are properly loaded and visible to the live server thread.', 'test_check_model_instance_from_subview (servers.tests.LiveServerThreadedTests)', 'test_view_calls_subview (servers.tests.LiveServerThreadedTests)', 'test_404 (servers.tests.LiveServerViews)', 'A HTTP 1.1 server is supposed to support keep-alive. Since our', 'test_environ (servers.tests.LiveServerViews)', 'test_keep_alive_connection_clears_previous_request_data (servers.tests.LiveServerViews)', 'See `test_closes_connection_without_content_length` for details. This', 'test_media_files (servers.tests.LiveServerViews)', 'LiveServerTestCase reports a 404 status code when HTTP client', 'Launched server serves with HTTP 1.1.', 'test_static_files (servers.tests.LiveServerViews)', 'test_view (servers.tests.LiveServerViews)', 'Each LiveServerTestCase binds to a unique port or fails to start a', "LiveServerTestCase.port customizes the server's port."]}, 'PASS_TO_PASS': {'success': ['test_set_up_class (servers.tests.LiveServerTestCaseSetupTest)', 'Contrast to'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
 Result for django__django-14011: resolved: False
-2025-12-12 15:00:45,866 - INFO - Attempting to stop container sweb.eval.django__django-14011.my_evaluation_run...
-2025-12-12 15:01:00,992 - INFO - Attempting to remove container sweb.eval.django__django-14011.my_evaluation_run...
-2025-12-12 15:01:01,007 - INFO - Container sweb.eval.django__django-14011.my_evaluation_run removed.
+2025-12-12 15:47:14,005 - INFO - Attempting to stop container sweb.eval.django__django-14011.my_evaluation_run...
+2025-12-12 15:47:29,102 - INFO - Attempting to remove container sweb.eval.django__django-14011.my_evaluation_run...
+2025-12-12 15:47:29,115 - INFO - Container sweb.eval.django__django-14011.my_evaluation_run removed.

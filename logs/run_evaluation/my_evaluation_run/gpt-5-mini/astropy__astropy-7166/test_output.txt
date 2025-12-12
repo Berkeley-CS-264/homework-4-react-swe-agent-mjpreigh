@@ -146,63 +146,18 @@ Date:   Wed Sep 10 09:36:12 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 26d147868f8a891a6009a25cd6a8576d2e1bd747
 diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
-index de3fb01d1..464cb76e9 100644
+index de3fb01d1..cceaeb957 100644
 --- a/astropy/utils/misc.py
 +++ b/astropy/utils/misc.py
-@@ -528,16 +528,43 @@ class InheritDocstrings(type):
+@@ -528,7 +528,7 @@ class InheritDocstrings(type):
                  not key.startswith('_'))
  
          for key, val in dct.items():
 -            if (inspect.isfunction(val) and
--                is_public_member(key) and
--                val.__doc__ is None):
--                for base in cls.__mro__[1:]:
--                    super_method = getattr(base, key, None)
--                    if super_method is not None:
--                        val.__doc__ = super_method.__doc__
--                        break
--
--        super().__init__(name, bases, dct)
-+            if not is_public_member(key):
-+                continue
-+
-+            # Plain functions: inherit docstring if missing
-+            if inspect.isfunction(val):
-+                if val.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_method = getattr(base, key, None)
-+                        if super_method is not None:
-+                            val.__doc__ = super_method.__doc__
-+                            break
-+
-+            # Properties: create a new property with inherited docstring
-+            elif isinstance(val, property):
-+                if val.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_method = getattr(base, key, None)
-+                        if super_method is not None:
-+                            doc = getattr(super_method, '__doc__', None)
-+                            if doc:
-+                                new_prop = property(val.fget, val.fset, val.fdel, doc)
-+                                # set on the class so the descriptor is updated
-+                                setattr(cls, key, new_prop)
-+                                break
-+
-+            # classmethod/staticmethod: update the underlying function's docstring
-+            elif isinstance(val, (classmethod, staticmethod)):
-+                func = val.__func__
-+                if func.__doc__ is None:
-+                    for base in cls.__mro__[1:]:
-+                        super_method = getattr(base, key, None)
-+                        if super_method is not None:
-+                            doc = getattr(super_method, '__doc__', None)
-+                            if doc:
-+                                func.__doc__ = doc
-+                                break
-+
- 
- 
- class OrderedDescriptor(metaclass=abc.ABCMeta):
++            if ((inspect.isfunction(val) or isinstance(val, property)) and
+                 is_public_member(key) and
+                 val.__doc__ is None):
+                 for base in cls.__mro__[1:]:
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -332,14 +287,14 @@ Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/p
 Obtaining file:///testbed
     Running command python setup.py egg_info
     running egg_info
-    creating /tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info
-    writing /tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/PKG-INFO
-    writing dependency_links to /tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/dependency_links.txt
-    writing entry points to /tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/entry_points.txt
-    writing requirements to /tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/requires.txt
-    writing top-level names to /tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/top_level.txt
-    writing manifest file '/tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/SOURCES.txt'
-    reading manifest file '/tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/SOURCES.txt'
+    creating /tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info
+    writing /tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/dependency_links.txt
+    writing entry points to /tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/entry_points.txt
+    writing requirements to /tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/SOURCES.txt'
     reading manifest template 'MANIFEST.in'
     warning: no files found matching 'astropy/utils/misc/data/.hidden_file.txt'
     warning: no files found matching '*' under directory 'scripts'
@@ -350,14 +305,14 @@ Obtaining file:///testbed
     warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
     no previously-included directories found matching 'astropy_helpers/build'
     warning: no previously-included files matching '*.o' found anywhere in distribution
-    writing manifest file '/tmp/pip-pip-egg-info-_i7_bus5/astropy.egg-info/SOURCES.txt'
+    writing manifest file '/tmp/pip-pip-egg-info-9wfu83ey/astropy.egg-info/SOURCES.txt'
 Requirement already satisfied: numpy>=1.10.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev21447) (1.16.0)
 Requirement already satisfied: pytest-astropy in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev21447) (0.2.1)
-Requirement already satisfied: pytest-remotedata>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (0.2.0)
-Requirement already satisfied: pytest-arraydiff in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (0.1)
 Requirement already satisfied: pytest-openfiles>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (0.2.0)
-Requirement already satisfied: pytest-doctestplus>=0.1.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (0.1.2)
 Requirement already satisfied: pytest>=3.1.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (3.3.1)
+Requirement already satisfied: pytest-arraydiff in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (0.1)
+Requirement already satisfied: pytest-doctestplus>=0.1.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (0.1.2)
+Requirement already satisfied: pytest-remotedata>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21447) (0.2.0)
 Requirement already satisfied: py>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21447) (1.11.0)
 Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21447) (38.2.4)
 Requirement already satisfied: six>=1.10.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21447) (1.16.0)
@@ -525,7 +480,7 @@ cachedir: .
 Running tests with Astropy version 3.1.dev21447.
 Running tests in astropy/utils/tests/test_misc.py.
 
-Date: 2025-12-12T23:00:45
+Date: 2025-12-12T23:47:13
 
 Platform: Linux-6.12.54-linuxkit-x86_64-with-debian-bookworm-sid
 
@@ -566,7 +521,7 @@ None
   Module already imported so cannot be rewritten: astropy.tests.plugins.display
 
 -- Docs: http://doc.pytest.org/en/latest/warnings.html
-=============== 8 passed, 1 skipped, 1 warnings in 0.14 seconds ================
+=============== 8 passed, 1 skipped, 1 warnings in 0.15 seconds ================
 + : '>>>>> End Test Output'
 + git checkout 26d147868f8a891a6009a25cd6a8576d2e1bd747 astropy/utils/tests/test_misc.py
 Updated 1 path from 406fd93b4
