@@ -1,21 +1,48 @@
 diff --git a/django/views/generic/base.py b/django/views/generic/base.py
-index ea5baca08d..0d44c9ec79 100644
+index ea5baca08d..c8b78c66fd 100644
 --- a/django/views/generic/base.py
 +++ b/django/views/generic/base.py
-@@ -159,8 +159,14 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
-     def get(self, request, *args, **kwargs):
-         # RemovedInDjango40Warning: when the deprecation ends, replace with:
-         #   context = self.get_context_data()
--        context_kwargs = _wrap_url_kwargs_with_deprecation_warning(kwargs)
--        context = self.get_context_data(**context_kwargs)
-+        # Pass the raw URL kwargs to get_context_data so view code receives real
-+        # values (not SimpleLazyObject), then add lazily-wrapped kwargs into
-+        # the context for templates to trigger the deprecation warning when
-+        # accessed from templates.
-+        context = self.get_context_data(**kwargs)
-+        wrapped = _wrap_url_kwargs_with_deprecation_warning(kwargs)
-+        for key, value in wrapped.items():
-+            context.setdefault(key, value)
-         return self.render_to_response(context)
+@@ -24,6 +24,43 @@ class ContextMixin:
+     extra_context = None
  
- 
+     def get_context_data(self, **kwargs):
++        """
++        Build the context dictionary to be used in template rendering.
++
++        Historically URL kwargs passed through TemplateView.get() were plain
++        values. In Django 3.1 they are wrapped in SimpleLazyObject instances
++        (so that accessing them from a template emits a deprecation warning).
++        That wrapping caused surprising errors when user code in
++        get_context_data() attempted to use those kwargs directly (for
++        example, passing a SimpleLazyObject into a queryset filter raises
++        "unsupported type").
++
++        To preserve the expectation that get_context_data() receives the
++        actual URL kwarg values, unwrap any SimpleLazyObject instances here
++        before returning the context.
++        """
++        # Force evaluation of any SimpleLazyObject values so callers of
++        # get_context_data() receive concrete values (not proxy objects).
++        for key, value in list(kwargs.items()):
++            if isinstance(value, SimpleLazyObject):
++                # Accessing any attribute on the proxy forces evaluation.
++                # We use getattr(..., '__class__') which triggers evaluation
++                # without assuming a specific representation.
++                try:
++                    getattr(value, '__class__')
++                except Exception:
++                    # If evaluation raises, leave the proxy as-is so that
++                    # the original error is propagated where appropriate.
++                    continue
++                # Replace the SimpleLazyObject in kwargs with its wrapped value.
++                try:
++                    # _wrapped is a private attribute that will be set once the
++                    # proxy has been evaluated.
++                    wrapped = getattr(value, '_wrapped', value)
++                except Exception:
++                    wrapped = value
++                kwargs[key] = wrapped
++
+         kwargs.setdefault('view', self)
+         if self.extra_context is not None:
+             kwargs.update(self.extra_context)

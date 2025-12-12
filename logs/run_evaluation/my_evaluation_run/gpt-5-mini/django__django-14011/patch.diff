@@ -1,28 +1,27 @@
-diff --git a/django/test/testcases.py b/django/test/testcases.py
-index 92f566b7b0..a483f18e61 100644
---- a/django/test/testcases.py
-+++ b/django/test/testcases.py
-@@ -1514,11 +1514,22 @@ class LiveServerThread(threading.Thread):
-             connections.close_all()
+diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
+index 14dab517c9..e7c9fa5c6e 100644
+--- a/django/core/servers/basehttp.py
++++ b/django/core/servers/basehttp.py
+@@ -17,6 +17,7 @@ from django.core.exceptions import ImproperlyConfigured
+ from django.core.handlers.wsgi import LimitedStream
+ from django.core.wsgi import get_wsgi_application
+ from django.utils.module_loading import import_string
++from django.db import connections
  
-     def _create_server(self):
--        return self.server_class(
-+        # Create the server instance. Ensure daemon_threads is False so that
-+        # shutdown() waits for request handler threads to finish. This makes
-+        # sure per-thread resources (like database connections) are closed
-+        # before the live server thread exits, avoiding races on teardown
-+        # (see #22414 regression where test DB couldn't be destroyed).
-+        httpd = self.server_class(
-             (self.host, self.port),
-             QuietWSGIRequestHandler,
-             allow_reuse_address=False,
-         )
-+        # ThreadingMixIn.daemon_threads determines whether the server waits
-+        # for request threads to terminate on shutdown. Set it to False so
-+        # shutdown() blocks until threads have finished and closed DB
-+        # connections.
-+        httpd.daemon_threads = False
-+        return httpd
+ __all__ = ('WSGIServer', 'WSGIRequestHandler')
  
-     def terminate(self):
-         if hasattr(self, 'httpd'):
+@@ -115,6 +116,14 @@ class ServerHandler(simple_server.ServerHandler):
+ 
+     def close(self):
+         self.get_stdin()._read_limited()
++        # Close any Django DB connections used by this request thread. This
++        # makes sure worker threads don't hold open DB resources after the
++        # request is complete, avoiding races on test DB teardown.
++        try:
++            connections.close_all()
++        except Exception:
++            # Be defensive: don't let DB cleanup issues break request handling.
++            pass
+         super().close()
+ 
+ 

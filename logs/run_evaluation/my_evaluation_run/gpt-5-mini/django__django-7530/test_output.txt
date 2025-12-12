@@ -154,18 +154,38 @@ Date:   Wed Sep 10 13:46:06 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff f8fab6f90233c7114d642dfe01a4e6d4cb14ee7d
 diff --git a/django/core/management/commands/makemigrations.py b/django/core/management/commands/makemigrations.py
-index 0b39536f5b..e648880ef0 100644
+index 0b39536f5b..175f2179f5 100644
 --- a/django/core/management/commands/makemigrations.py
 +++ b/django/core/management/commands/makemigrations.py
-@@ -105,7 +105,7 @@ class Command(BaseCommand):
-                     # At least one model must be migrated to the database.
-                     router.allow_migrate(connection.alias, app_label, model_name=model._meta.object_name)
+@@ -101,13 +101,22 @@ class Command(BaseCommand):
+         aliases_to_check = connections if settings.DATABASE_ROUTERS else [DEFAULT_DB_ALIAS]
+         for alias in sorted(aliases_to_check):
+             connection = connections[alias]
+-            if (connection.settings_dict['ENGINE'] != 'django.db.backends.dummy' and any(
+-                    # At least one model must be migrated to the database.
+-                    router.allow_migrate(connection.alias, app_label, model_name=model._meta.object_name)
++            if connection.settings_dict['ENGINE'] != 'django.db.backends.dummy':
++                # Check if at least one model in any app should be migrated to the
++                # database according to the router. Use the app's models rather
++                # than apps.get_models(app_label) which returns all models when
++                # passed a truthy positional argument.
++                should_check = any(
++                    router.allow_migrate(
++                        connection.alias,
++                        app_label,
++                        model_name=model._meta.object_name,
++                    )
                      for app_label in consistency_check_labels
 -                    for model in apps.get_models(app_label)
+-            )):
+-                loader.check_consistent_history(connection)
 +                    for model in apps.get_app_config(app_label).get_models()
-             )):
-                 loader.check_consistent_history(connection)
++                )
++                if should_check:
++                    loader.check_consistent_history(connection)
  
+         # Before anything else, see if there's conflicting apps and drop out
+         # hard if there are any and they don't want to merge
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -294,11 +314,11 @@ export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
 running install
 running bdist_egg
 running egg_info
-writing requirements to Django.egg-info/requires.txt
-writing top-level names to Django.egg-info/top_level.txt
 writing entry points to Django.egg-info/entry_points.txt
-writing dependency_links to Django.egg-info/dependency_links.txt
 writing Django.egg-info/PKG-INFO
+writing top-level names to Django.egg-info/top_level.txt
+writing dependency_links to Django.egg-info/dependency_links.txt
+writing requirements to Django.egg-info/requires.txt
 reading manifest file 'Django.egg-info/SOURCES.txt'
 reading manifest template 'MANIFEST.in'
 warning: no previously-included files matching '__pycache__' found anywhere in distribution
@@ -6648,7 +6668,7 @@ test_squashmigrations_valid_start (migrations.test_commands.SquashMigrationsTest
 test_ticket_23799_squashmigrations_no_optimize (migrations.test_commands.SquashMigrationsTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 63 tests in 0.462s
+Ran 63 tests in 0.428s
 
 OK
  OK

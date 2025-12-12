@@ -1,30 +1,50 @@
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..68d0cf9ba8 100644
+index 7c978c47be..9b80012018 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -216,7 +216,24 @@ def __add__(self, other):
-         try:
-             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
-         except TypeError:
--            raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            # Allow adding a scalar*Point, e.g. Point + 2*Point (which produces a Mul)
-+            # Try to detect a Mul with exactly one Point factor and convert it
-+            # to a Point by multiplying the Point by the scalar factors.
-+            if isinstance(other, Expr) and getattr(other, 'is_Mul', False):
-+                pts = [a for a in other.args if isinstance(a, Point)]
-+                if len(pts) == 1:
-+                    pt = pts[0]
-+                    scalar = sympify(1)
-+                    for a in other.args:
-+                        if a is pt:
-+                            continue
-+                        scalar *= a
-+                    o_point = pt * scalar
-+                    s, o = Point._normalize_dimension(self, Point(o_point, evaluate=False))
-+                else:
-+                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            else:
-+                raise GeometryError("Don't know how to add {} and a Point object".format(other))
- 
+@@ -221,6 +221,11 @@ def __add__(self, other):
          coords = [simplify(a + b) for a, b in zip(s, o)]
          return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __contains__(self, item):
+         return item in self.args
+ 
+@@ -230,6 +235,11 @@ def __div__(self, divisor):
+         coords = [simplify(x/divisor) for x in self.args]
+         return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __eq__(self, other):
+         if not isinstance(other, Point) or len(self.args) != len(other.args):
+             return False
+@@ -278,11 +288,21 @@ def __mul__(self, factor):
+         coords = [simplify(x*factor) for x in self.args]
+         return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __neg__(self):
+         """Negate the point."""
+         coords = [-x for x in self.args]
+         return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __sub__(self, other):
+         """Subtract two points, or subtract a factor from this point's
+         coordinates."""

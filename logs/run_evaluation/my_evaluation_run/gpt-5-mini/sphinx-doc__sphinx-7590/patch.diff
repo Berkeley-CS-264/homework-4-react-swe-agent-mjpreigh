@@ -5,51 +5,47 @@
      def __init__(self, data: str) -> None:
          self.data = data
 @@
- 
-     def describe_signature(self, signode: TextElement, mode: str,
-                            env: "BuildEnvironment", symbol: "Symbol") -> None:
-         txt = str(self)
          signode.append(nodes.Text(txt, txt))
  
  
  class ASTCharLiteral(ASTLiteral):
-@@
+     def __init__(self, prefix: str, data: str) -> None:
+         self.prefix = prefix  # may be None when no prefix
+         self.data = data
+         assert prefix in _id_char_from_prefix
+         self.type = _id_char_from_prefix[prefix]
+         decoded = data.encode().decode('unicode-escape')
+         if len(decoded) == 1:
+             self.value = ord(decoded)
+         else:
+             raise UnsupportedMultiCharacterCharLiteral(decoded)
+ 
+     def _stringify(self, transform: StringifyTransform) -> str:
+         if self.prefix is None:
+             return "'" + self.data + "'"
+         else:
+             return self.prefix + "'" + self.data + "'"
+ 
+     def get_id(self, version: int) -> str:
+         return self.type + str(self.value)
+ 
      def describe_signature(self, signode: TextElement, mode: str,
                             env: "BuildEnvironment", symbol: "Symbol") -> None:
          txt = str(self)
          signode.append(nodes.Text(txt, txt))
  
  
-+class ASTUserDefinedLiteral(ASTLiteral):
-+    """A user-defined-literal: a literal followed immediately by an identifier suffix."""
-+    def __init__(self, literal: ASTLiteral, identifier: ASTIdentifier) -> None:
-+        self.literal = literal
-+        self.identifier = identifier
-+
-+    def _stringify(self, transform: StringifyTransform) -> str:
-+        return transform(self.literal) + transform(self.identifier)
-+
-+    def get_id(self, version: int) -> str:
-+        # Compose ids of underlying literal and identifier.
-+        # For older versions where literal id may not be available, fall back to str().
-+        try:
-+            lit_id = self.literal.get_id(version)
-+        except Exception:
-+            lit_id = str(self.literal)
-+        try:
-+            ident_id = self.identifier.get_id(version)
-+        except Exception:
-+            ident_id = str(self.identifier)
-+        return lit_id + ident_id
-+
-+    def describe_signature(self, signode: TextElement, mode: str,
-+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
-+        verify_description_mode(mode)
-+        # Render literal and suffix together
-+        self.literal.describe_signature(signode, mode, env, symbol)
-+        # suffix is just appended as text (no whitespace)
-+        signode.append(nodes.Text(str(self.identifier)))
-+
+ class ASTThisLiteral(ASTExpression):
+     def _stringify(self, transform: StringifyTransform) -> str:
+         return "this"
+@@
+         signode.append(nodes.Text(')'))
+ 
+ 
+ class ASTIdExpression(ASTExpression):
+     def __init__(self, name: ASTNestedName):
+         # note: this class is basically to cast a nested name as an expression
+         self.name = name
 *** End Patch
 
 No changes detected to generate a patch.

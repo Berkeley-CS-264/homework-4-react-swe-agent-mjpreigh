@@ -49,7 +49,7 @@ def process_instance(
         agent = ReactAgent("swe-agent", parser, llm)
         
         # Add environment functions to the agent
-        agent.add_functions([env.run_bash_cmd, env.search_files, env.show_file, env.show_files, env.find_references_in_file])
+        agent.add_functions([env.run_bash_cmd, env.search_files, env.show_file, env.show_files, env.find_references_in_file, env.find_all_imports_in_file, env.list_python_files, env.list_uncommitted_python_files])
         #agent.add_functions([env.run_bash_cmd, env.show_file, env.search_files, env.find_references_in_file, env.show_files, env.replace_in_file])
         
         # TODO(student): Add more functions here if needed
@@ -93,7 +93,7 @@ def main(
     print(f"Loading dataset {dataset_path}, split {split}...")
     instances = list(load_dataset(dataset_path, split=split))
     # limit to 1 instance for testing
-    #instances = [instances[0]]
+    #instances = [instances[1]]
     print(f"Running on {len(instances)} instances...")
 
     def process_futures(futures: dict[concurrent.futures.Future, str]):

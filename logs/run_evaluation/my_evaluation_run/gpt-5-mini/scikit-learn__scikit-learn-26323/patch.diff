@@ -1,36 +1,37 @@
 diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
-index 4eddd12b1..c833372ca 100644
+index 4eddd12b1..a9ee846b2 100644
 --- a/sklearn/compose/_column_transformer.py
 +++ b/sklearn/compose/_column_transformer.py
-@@ -293,16 +293,23 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+@@ -293,14 +293,29 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
              Estimator instance.
          """
          super().set_output(transform=transform)
 -        transformers = (
--            trans
--            for _, trans, _ in chain(
--                self.transformers, getattr(self, "transformers_", [])
--            )
--            if trans not in {"passthrough", "drop"}
++
++        # Collect transformers from both the parameter list (self.transformers)
++        # and the fitted list (self.transformers_) if present. Filter out the
++        # 'passthrough' and 'drop' specifiers which are not estimators.
++        trans_list = [
+             trans
+             for _, trans, _ in chain(
+                 self.transformers, getattr(self, "transformers_", [])
+             )
+             if trans not in {"passthrough", "drop"}
 -        )
 -        for trans in transformers:
-+        seen = set()
-+        def _set_if_needed(trans):
-+            if trans in {"passthrough", "drop"}:
-+                return
-+            tid = id(trans)
-+            if tid in seen:
-+                return
-+            seen.add(tid)
++        ]
++
++        # Also ensure we include the remainder estimator (the parameter),
++        # if it is an estimator (not 'passthrough' or 'drop') and not already
++        # present in the collected transformers. This covers the common case
++        # where set_output is called before fitting: the remainder estimator
++        # lives in self.remainder and is not part of self.transformers.
++        if hasattr(self, "remainder"):
++            rem = self.remainder
++            if rem not in ("passthrough", "drop") and rem not in trans_list:
++                trans_list.append(rem)
++
++        for trans in trans_list:
              _safe_set_output(trans, transform=transform)
  
-+        for _, trans, _ in chain(self.transformers, getattr(self, "transformers_", [])):
-+            _set_if_needed(trans)
-+
-+        # Also set output on remainder estimator if it's an estimator
-+        if hasattr(self, "remainder") and self.remainder not in {"passthrough", "drop"}:
-+            _set_if_needed(self.remainder)
-+
          return self
- 
-     def get_params(self, deep=True):

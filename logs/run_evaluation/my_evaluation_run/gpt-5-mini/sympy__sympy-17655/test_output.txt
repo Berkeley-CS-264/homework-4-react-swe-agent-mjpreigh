@@ -146,35 +146,55 @@ Date:   Wed Sep 10 16:33:31 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff f5e965947af2410ded92cfad987aaf45262ea434
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..68d0cf9ba8 100644
+index 7c978c47be..9b80012018 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -216,7 +216,24 @@ def __add__(self, other):
-         try:
-             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
-         except TypeError:
--            raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            # Allow adding a scalar*Point, e.g. Point + 2*Point (which produces a Mul)
-+            # Try to detect a Mul with exactly one Point factor and convert it
-+            # to a Point by multiplying the Point by the scalar factors.
-+            if isinstance(other, Expr) and getattr(other, 'is_Mul', False):
-+                pts = [a for a in other.args if isinstance(a, Point)]
-+                if len(pts) == 1:
-+                    pt = pts[0]
-+                    scalar = sympify(1)
-+                    for a in other.args:
-+                        if a is pt:
-+                            continue
-+                        scalar *= a
-+                    o_point = pt * scalar
-+                    s, o = Point._normalize_dimension(self, Point(o_point, evaluate=False))
-+                else:
-+                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
-+            else:
-+                raise GeometryError("Don't know how to add {} and a Point object".format(other))
- 
+@@ -221,6 +221,11 @@ def __add__(self, other):
          coords = [simplify(a + b) for a, b in zip(s, o)]
          return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __contains__(self, item):
+         return item in self.args
+ 
+@@ -230,6 +235,11 @@ def __div__(self, divisor):
+         coords = [simplify(x/divisor) for x in self.args]
+         return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __eq__(self, other):
+         if not isinstance(other, Point) or len(self.args) != len(other.args):
+             return False
+@@ -278,11 +288,21 @@ def __mul__(self, factor):
+         coords = [simplify(x*factor) for x in self.args]
+         return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __neg__(self):
+         """Negate the point."""
+         coords = [-x for x in self.args]
+         return Point(coords, evaluate=False)
+ 
++    def __rmul__(self, factor):
++        """Right-hand multiplication: allow number * Point to work the same
++        as Point * number."""
++        return self.__mul__(factor)
++
+     def __sub__(self, other):
+         """Subtract two points, or subtract a factor from this point's
+         coordinates."""
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -327,12 +347,12 @@ architecture:       64-bit
 cache:              no
 ground types:       python 
 numpy:              None
-random seed:        77234600
-hash randomization: on (PYTHONHASHSEED=4122429700)
+random seed:        20979720
+hash randomization: on (PYTHONHASHSEED=920901271)
 
 sympy/geometry/tests/test_point.py[12] 
-test_point E
-test_point3D E
+test_point ok
+test_point3D ok
 test_Point2D ok
 test_issue_9214 ok
 test_issue_11617 ok
@@ -342,24 +362,10 @@ test_arguments ok
 test_unit ok
 test_dot ok
 test__normalize_dimension ok
-test_direction_cosine ok                                                  [FAIL]
+test_direction_cosine ok                                                    [OK]
 
 
-________________________________________________________________________________
-________________ sympy/geometry/tests/test_point.py:test_point _________________
-Traceback (most recent call last):
-  File "/testbed/sympy/geometry/tests/test_point.py", line 94, in test_point
-    assert 5 * p4 == Point(5, 5)
-TypeError: unsupported operand type(s) for *: 'int' and 'Point2D'
-________________________________________________________________________________
-_______________ sympy/geometry/tests/test_point.py:test_point3D ________________
-Traceback (most recent call last):
-  File "/testbed/sympy/geometry/tests/test_point.py", line 171, in test_point3D
-    assert 5 * p4 == Point3D(5, 5, 5)
-TypeError: unsupported operand type(s) for *: 'int' and 'Point3D'
-
-=========== tests finished: 10 passed, 2 exceptions, in 8.01 seconds ===========
-DO *NOT* COMMIT!
+================== tests finished: 12 passed, in 8.88 seconds ==================
 + : '>>>>> End Test Output'
 + git checkout f5e965947af2410ded92cfad987aaf45262ea434 sympy/geometry/tests/test_point.py
 Updated 1 path from 0389123d3e

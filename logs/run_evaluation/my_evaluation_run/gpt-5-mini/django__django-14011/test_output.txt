@@ -135,7 +135,7 @@ On branch main
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   django/test/testcases.py
+	modified:   django/core/servers/basehttp.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -145,34 +145,33 @@ Date:   Wed Sep 10 11:39:47 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff e4430f22c8e3d29ce5d9d0263fba57121938d06d
-diff --git a/django/test/testcases.py b/django/test/testcases.py
-index 92f566b7b0..a483f18e61 100644
---- a/django/test/testcases.py
-+++ b/django/test/testcases.py
-@@ -1514,11 +1514,22 @@ class LiveServerThread(threading.Thread):
-             connections.close_all()
+diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
+index 14dab517c9..e7c9fa5c6e 100644
+--- a/django/core/servers/basehttp.py
++++ b/django/core/servers/basehttp.py
+@@ -17,6 +17,7 @@ from django.core.exceptions import ImproperlyConfigured
+ from django.core.handlers.wsgi import LimitedStream
+ from django.core.wsgi import get_wsgi_application
+ from django.utils.module_loading import import_string
++from django.db import connections
  
-     def _create_server(self):
--        return self.server_class(
-+        # Create the server instance. Ensure daemon_threads is False so that
-+        # shutdown() waits for request handler threads to finish. This makes
-+        # sure per-thread resources (like database connections) are closed
-+        # before the live server thread exits, avoiding races on teardown
-+        # (see #22414 regression where test DB couldn't be destroyed).
-+        httpd = self.server_class(
-             (self.host, self.port),
-             QuietWSGIRequestHandler,
-             allow_reuse_address=False,
-         )
-+        # ThreadingMixIn.daemon_threads determines whether the server waits
-+        # for request threads to terminate on shutdown. Set it to False so
-+        # shutdown() blocks until threads have finished and closed DB
-+        # connections.
-+        httpd.daemon_threads = False
-+        return httpd
+ __all__ = ('WSGIServer', 'WSGIRequestHandler')
  
-     def terminate(self):
-         if hasattr(self, 'httpd'):
+@@ -115,6 +116,14 @@ class ServerHandler(simple_server.ServerHandler):
+ 
+     def close(self):
+         self.get_stdin()._read_limited()
++        # Close any Django DB connections used by this request thread. This
++        # makes sure worker threads don't hold open DB resources after the
++        # request is complete, avoiding races on test DB teardown.
++        try:
++            connections.close_all()
++        except Exception:
++            # Be defensive: don't let DB cleanup issues break request handling.
++            pass
+         super().close()
+ 
+ 
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -314,8 +313,8 @@ Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/test
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-4.0.dev20250910113947-0.editable-py3-none-any.whl size=26054 sha256=4a753aeb38f2f1d1749230a46d7b41aff77cafe2bb305902f69efe886404d61f
-  Stored in directory: /tmp/pip-ephem-wheel-cache-23zth4ws/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+  Created wheel for Django: filename=django-4.0.dev20250910113947-0.editable-py3-none-any.whl size=26054 sha256=f9b08aa80bcdc9c1a50b815ae741314f5d4f136461cbd48d4772cea037f5e621
+  Stored in directory: /tmp/pip-ephem-wheel-cache-xz13wtv1/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -325,7 +324,7 @@ Installing collected packages: Django
 Successfully installed Django-4.0.dev20250910113947
 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
 + git checkout e4430f22c8e3d29ce5d9d0263fba57121938d06d django/test/testcases.py tests/servers/tests.py
-Updated 1 path from 0880e74cbb
+Updated 0 paths from 0880e74cbb
 + git apply -v -
 Checking patch django/test/testcases.py...
 Checking patch tests/servers/tests.py...
@@ -378,7 +377,7 @@ Traceback (most recent call last):
     self.httpd = self._create_server()
   File "/testbed/django/test/testcases.py", line 1517, in _create_server
     return self.server_class(
-  File "/testbed/django/core/servers/basehttp.py", line 71, in __init__
+  File "/testbed/django/core/servers/basehttp.py", line 72, in __init__
     super().__init__(*args, **kwargs)
 TypeError: __init__() got an unexpected keyword argument 'connections_override'
 
@@ -392,7 +391,7 @@ Traceback (most recent call last):
     self.httpd = self._create_server()
   File "/testbed/django/test/testcases.py", line 1517, in _create_server
     return self.server_class(
-  File "/testbed/django/core/servers/basehttp.py", line 71, in __init__
+  File "/testbed/django/core/servers/basehttp.py", line 72, in __init__
     super().__init__(*args, **kwargs)
 TypeError: __init__() got an unexpected keyword argument 'connections_override'
 
@@ -406,7 +405,7 @@ Traceback (most recent call last):
     self.httpd = self._create_server()
   File "/testbed/django/test/testcases.py", line 1517, in _create_server
     return self.server_class(
-  File "/testbed/django/core/servers/basehttp.py", line 71, in __init__
+  File "/testbed/django/core/servers/basehttp.py", line 72, in __init__
     super().__init__(*args, **kwargs)
 TypeError: __init__() got an unexpected keyword argument 'connections_override'
 
@@ -424,7 +423,7 @@ Traceback (most recent call last):
     return self.server_class(
   File "/testbed/tests/servers/tests.py", line 47, in __init__
     super().__init__(*args, **kwargs)
-  File "/testbed/django/core/servers/basehttp.py", line 71, in __init__
+  File "/testbed/django/core/servers/basehttp.py", line 72, in __init__
     super().__init__(*args, **kwargs)
 TypeError: __init__() got an unexpected keyword argument 'connections_override'
 
@@ -438,7 +437,7 @@ Traceback (most recent call last):
     self.httpd = self._create_server()
   File "/testbed/django/test/testcases.py", line 1517, in _create_server
     return self.server_class(
-  File "/testbed/django/core/servers/basehttp.py", line 71, in __init__
+  File "/testbed/django/core/servers/basehttp.py", line 72, in __init__
     super().__init__(*args, **kwargs)
 TypeError: __init__() got an unexpected keyword argument 'connections_override'
 
@@ -452,12 +451,12 @@ Traceback (most recent call last):
     self.httpd = self._create_server()
   File "/testbed/django/test/testcases.py", line 1517, in _create_server
     return self.server_class(
-  File "/testbed/django/core/servers/basehttp.py", line 71, in __init__
+  File "/testbed/django/core/servers/basehttp.py", line 72, in __init__
     super().__init__(*args, **kwargs)
 TypeError: __init__() got an unexpected keyword argument 'connections_override'
 
 ----------------------------------------------------------------------
-Ran 2 tests in 0.565s
+Ran 2 tests in 0.616s
 
 FAILED (errors=6)
 Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...

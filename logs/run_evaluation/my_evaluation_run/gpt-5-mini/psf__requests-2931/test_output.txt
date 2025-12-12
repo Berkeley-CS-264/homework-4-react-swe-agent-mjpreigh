@@ -135,7 +135,7 @@ On branch main
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   requests/models.py
+	modified:   requests/utils.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
 + git show
@@ -145,22 +145,34 @@ Date:   Wed Sep 10 14:59:33 2025 +0000
 
     SWE-bench
 + git -c core.fileMode=false diff 5f7a3a74aab1625c2bb65f643197ee885e3da576
-diff --git a/requests/models.py b/requests/models.py
-index 9c624d3..b8c5d9e 100644
---- a/requests/models.py
-+++ b/requests/models.py
-@@ -80,8 +80,10 @@ class RequestEncodingMixin(object):
-         if parameters are supplied as a dict.
-         """
+diff --git a/requests/utils.py b/requests/utils.py
+index 132cd2b..245cf85 100644
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -697,7 +697,22 @@ def to_native_string(string, encoding='ascii'):
+         if is_py2:
+             out = string.encode(encoding)
+         else:
+-            out = string.decode(encoding)
++            # On Python 3, decode bytes/bytearray to str using the given encoding.
++            # If the provided encoding fails, fall back to utf-8, latin-1, then
++            # finally decode with replacement to ensure we always return a str.
++            if isinstance(string, (bytes, bytearray)):
++                try:
++                    out = string.decode(encoding)
++                except (UnicodeDecodeError, LookupError):
++                    try:
++                        out = string.decode('utf-8')
++                    except UnicodeDecodeError:
++                        try:
++                            out = string.decode('latin-1')
++                        except UnicodeDecodeError:
++                            out = string.decode('utf-8', errors='replace')
++            else:
++                out = str(string)
  
--        if isinstance(data, (str, bytes)):
-+        if isinstance(data, str):
-             return to_native_string(data)
-+        if isinstance(data, bytes):
-+            return data
-         elif hasattr(data, 'read'):
-             return data
-         elif hasattr(data, '__iter__'):
+     return out
+ 
 + source /opt/miniconda3/bin/activate
 ++ _CONDA_ROOT=/opt/miniconda3
 ++ . /opt/miniconda3/etc/profile.d/conda.sh
@@ -292,8 +304,8 @@ Processing /testbed
 Building wheels for collected packages: requests
   Building wheel for requests (setup.py): started
   Building wheel for requests (setup.py): finished with status 'done'
-  Created wheel for requests: filename=requests-2.9.0-py2.py3-none-any.whl size=491659 sha256=8c2109c31bfa0826029f38165c634a639f27209a763a247532517e9ef4628443
-  Stored in directory: /tmp/pip-ephem-wheel-cache-xeyzhn6i/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+  Created wheel for requests: filename=requests-2.9.0-py2.py3-none-any.whl size=491827 sha256=13591a89daf8a99b21483f9cfae05d7f678b9dbd24e662302ec1ea8e6d7a95cd
+  Stored in directory: /tmp/pip-ephem-wheel-cache-ujzxufes/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
 Successfully built requests
 Installing collected packages: requests
   Attempting uninstall: requests
@@ -314,7 +326,7 @@ platform linux -- Python 3.9.20, pytest-7.4.4, pluggy-1.0.0
 rootdir: /testbed
 collected 168 items
 
-test_requests.py ...EE...F.EEEEEEEEEEEEEEEEEEEEE...EEEEEEEEEEEEEEEEEEEEE [ 32%]
+test_requests.py ...EE....FEEEEEEEEEEEEEEEEEEEEE...EEEEEEEEEEEEEEEEEEEEE [ 32%]
 EEEEEEE........E..E.....E.EEE.EE.EEEEE.EEEE.EEEEEx...................... [ 75%]
 .........................EEEE..EE.....EE.                                [100%]
 
@@ -1211,44 +1223,19 @@ E       recursive dependency involving fixture 'httpbin' detected
 
 /testbed/test_requests.py:51
 =================================== FAILURES ===================================
-__________________ TestRequests.test_params_bytes_are_encoded __________________
+_________________________ TestRequests.test_binary_put _________________________
 
-self = <test_requests.TestRequests object at 0x7ffffe61ff40>
+self = <test_requests.TestRequests object at 0x7ffffe62afd0>
 
-    def test_params_bytes_are_encoded(self):
->       request = requests.Request('GET', 'http://example.com',
-                                   params=b'test=foo').prepare()
+    def test_binary_put(self):
+        request = requests.Request('PUT', 'http://example.com',
+                                   data=u"ööö".encode("utf-8")).prepare()
+>       assert isinstance(request.body, bytes)
+E       AssertionError: assert False
+E        +  where False = isinstance('ööö', bytes)
+E        +    where 'ööö' = <PreparedRequest [PUT]>.body
 
-test_requests.py:156: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-requests/models.py:241: in prepare
-    p.prepare(
-requests/models.py:295: in prepare
-    self.prepare_url(url, params)
-requests/models.py:397: in prepare_url
-    url = requote_uri(urlunparse([scheme, netloc, path, None, query, fragment]))
-/opt/miniconda3/envs/testbed/lib/python3.9/urllib/parse.py:512: in urlunparse
-    _coerce_args(*components))
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-args = ('http', 'example.com', '/', None, b'test=foo', None), str_input = True
-arg = b'test=foo'
-
-    def _coerce_args(*args):
-        # Invokes decode if necessary to create str args
-        # and returns the coerced inputs along with
-        # an appropriate result coercion function
-        #   - noop for str inputs
-        #   - encoding function otherwise
-        str_input = isinstance(args[0], str)
-        for arg in args[1:]:
-            # We special-case the empty string to support the
-            # "scheme=''" default argument to some functions
-            if arg and isinstance(arg, str) != str_input:
->               raise TypeError("Cannot mix str and non-str arguments")
-E               TypeError: Cannot mix str and non-str arguments
-
-/opt/miniconda3/envs/testbed/lib/python3.9/urllib/parse.py:133: TypeError
+test_requests.py:163: AssertionError
 =============================== warnings summary ===============================
 requests/packages/urllib3/connectionpool.py:99
   /testbed/requests/packages/urllib3/connectionpool.py:99: DeprecationWarning: invalid escape sequence \*
@@ -1271,8 +1258,8 @@ requests/packages/urllib3/poolmanager.py:33
   /testbed/requests/packages/urllib3/poolmanager.py:33: DeprecationWarning: invalid escape sequence \*
     """
 
-requests/models.py:785
-  /testbed/requests/models.py:785: DeprecationWarning: invalid escape sequence \*
+requests/models.py:783
+  /testbed/requests/models.py:783: DeprecationWarning: invalid escape sequence \*
     """Returns the json-encoded content of a response, if any.
 
 requests/api.py:57
@@ -1332,7 +1319,7 @@ requests/sessions.py:534
     """Sends a DELETE request. Returns :class:`Response` object.
 
 test_requests.py::TestRequests::test_invalid_url
-  /testbed/requests/models.py:170: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  /testbed/requests/models.py:168: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
     if isinstance(hook, collections.Callable):
 
 test_requests.py::TestContentEncodingDetection::test_html4_pragma
@@ -1353,7 +1340,7 @@ PASSED test_requests.py::TestRequests::test_basic_building
 PASSED test_requests.py::TestRequests::test_path_is_not_double_encoded
 PASSED test_requests.py::TestRequests::test_params_are_added_before_fragment
 PASSED test_requests.py::TestRequests::test_params_original_order_is_preserved_by_default
-PASSED test_requests.py::TestRequests::test_binary_put
+PASSED test_requests.py::TestRequests::test_params_bytes_are_encoded
 PASSED test_requests.py::TestRequests::test_connection_error_invalid_domain
 PASSED test_requests.py::TestRequests::test_connection_error_invalid_port
 PASSED test_requests.py::TestRequests::test_LocationParseError
@@ -1514,8 +1501,8 @@ ERROR test_requests.py::TestTimeout::test_encoded_methods
 ERROR test_requests.py::TestRedirects::test_requests_are_updated_each_time
 ERROR test_requests.py::test_urllib3_retries
 ERROR test_requests.py::test_urllib3_pool_connection_closed
-FAILED test_requests.py::TestRequests::test_params_bytes_are_encoded - TypeEr...
-======= 1 failed, 85 passed, 1 xfailed, 28 warnings, 81 errors in 0.74s ========
+FAILED test_requests.py::TestRequests::test_binary_put - AssertionError: asse...
+======= 1 failed, 85 passed, 1 xfailed, 28 warnings, 81 errors in 0.57s ========
 + : '>>>>> End Test Output'
 + git checkout 5f7a3a74aab1625c2bb65f643197ee885e3da576 test_requests.py
 Updated 1 path from bf39b3a

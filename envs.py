@@ -183,16 +183,28 @@ class SWEEnvironment:
         Return a list of files which contain the given content string, and the snippet of code of each instance.
 
         Args:
-            content (str): The string to look for in files
+            content (str): The string to look for in files.
 
         Returns:
             List of file paths containing files where the given string shows up, and the snippet of code of each instance.
         """
+        num_results = 20          # number of results to show
+        print("here 1")
 
-        results = []
+        cmd = (
+            f"grep -RIn --include='*.py' "
+            f"--exclude-dir='.*' "
+            f"--exclude-dir='__pycache__' "
+            f"--exclude-dir='node_modules' "
+            f"-C2 '{content}' | head -n {num_results}"
+        )
+        res = self.run_bash_cmd(cmd)
+        print("search res: " + str(res))
+        return res
+        #results = []
 
-        cmd = f'grep -Rl "{content}"'
-        return self.run_bash_cmd(cmd)
+        #cmd = f'grep -Rl "{content}"'
+        #return self.run_bash_cmd(cmd)
         files = self.run_bash_cmd(cmd).strip().split('\n')
 
         if files[0] == '':
@@ -247,6 +259,40 @@ class SWEEnvironment:
         """
         cmd = f'grep -n "{content}" {file_path}'
         return self.run_bash_cmd(cmd)
+    
+
+    def find_all_imports_in_file(self, file_path: str) -> str:
+        """
+        Return all imports in file.
+
+        Args:
+            file_path (str): The file to look in
+
+        Returns:
+        List of imports in file
+        """
+        res = self.find_references_in_file(file_path, "import")
+        print("imports: " + res)
+        return res
+    
+    def list_python_files(self) -> str:
+        """
+        Return list of all python files.
+        """
+        cmd = 'find . -type f -name "*.py"'
+        res = self.run_bash_cmd(cmd)
+        print("all files: " + res)
+        return res
+    
+    def list_uncommitted_python_files(self) -> str:
+        """
+        Return list of all uncommitted python files.
+        """
+        cmd = 'git status --porcelain | grep \'\.py$\' | awk \'{print $2}\''
+        res = self.run_bash_cmd(cmd)
+        print("all uncommitted files: " + res)
+        return res
+
     
     def run_script(self, script: str) -> str:
         """
