@@ -1,15 +1,17 @@
-Update nodes.Node.add_marker to refresh cached xfail evaluation when adding xfail dynamically
-
-When a pytest.mark.xfail(...) is added dynamically to a node (for example via request.node.add_marker),
-the node's xfail evaluation cache is refreshed so the running test will be treated as xfailed if the
-mark's condition applies. This mirrors the behavior of statically-declared xfail marks.
-
-Change summary:
-- src/_pytest/nodes.py: after inserting/appending marker into own_markers, if the marker name is "xfail"
-  then import _pytest.skipping.xfailed_key and evaluate_xfail_marks and store the evaluated Xfail result
-  in the node's _store under xfailed_key (if present). Exceptions during evaluation are ignored to be
-  conservative.
-
-This ensures dynamic xfail additions behave consistently with static xfail marks.
-
-No changes detected to generate a patch.
+diff --git a/src/_pytest/skipping.py b/src/_pytest/skipping.py
+index 335e10996..9f9df028c 100644
+--- a/src/_pytest/skipping.py
++++ b/src/_pytest/skipping.py
+@@ -247,6 +247,12 @@ def pytest_runtest_setup(item: Item) -> None:
+ @hookimpl(hookwrapper=True)
+ def pytest_runtest_call(item: Item) -> Generator[None, None, None]:
+     xfailed = item._store.get(xfailed_key, None)
++    # If no xfail evaluation was stored earlier (e.g. markers added during
++    # the test call via request.node.add_marker), re-evaluate the xfail
++    # marks now so dynamically added xfail markers affect the report.
++    if xfailed is None and call.when == "call":
++        xfailed = evaluate_xfail_marks(item)
++        item._store[xfailed_key] = xfailed
+     if xfailed is None:
+         item._store[xfailed_key] = xfailed = evaluate_xfail_marks(item)
+ 

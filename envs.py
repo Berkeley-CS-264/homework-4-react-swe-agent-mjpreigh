@@ -292,6 +292,30 @@ class SWEEnvironment:
         res = self.run_bash_cmd(cmd)
         print("all uncommitted files: " + res)
         return res
+    
+    def list_broken_python_files(self) -> str:
+        """
+        Return list of all python files containing TODO or FIXME comments
+        """
+        cmd = 'grep -Rn -E \'TODO|FIXME\' --include="*.py" .'
+        res = self.run_bash_cmd(cmd)
+        return res
+    
+    def functions_per_python_file(self) -> str:
+        """
+        List number of functions in each Python file.
+        """
+        cmd = 'grep -R -c \'^def \' --include="*.py" .'
+        res = self.run_bash_cmd(cmd)
+        return res
+    
+    def find_test_files(self) -> str:
+        """
+        Lists test files
+        """
+        cmd = 'find . -type f -name "test_*.py"'
+        res = self.run_bash_cmd(cmd)
+        return res
 
     
     def run_script(self, script: str) -> str:

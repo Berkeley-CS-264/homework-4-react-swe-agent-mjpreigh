@@ -1,50 +1,19 @@
 diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
-index 7c978c47be..9b80012018 100644
+index 7c978c47be..609a98b31a 100644
 --- a/sympy/geometry/point.py
 +++ b/sympy/geometry/point.py
-@@ -221,6 +221,11 @@ def __add__(self, other):
-         coords = [simplify(a + b) for a, b in zip(s, o)]
-         return Point(coords, evaluate=False)
- 
-+    def __rmul__(self, factor):
-+        """Right-hand multiplication: allow number * Point to work the same
-+        as Point * number."""
-+        return self.__mul__(factor)
-+
-     def __contains__(self, item):
-         return item in self.args
- 
-@@ -230,6 +235,11 @@ def __div__(self, divisor):
-         coords = [simplify(x/divisor) for x in self.args]
-         return Point(coords, evaluate=False)
- 
-+    def __rmul__(self, factor):
-+        """Right-hand multiplication: allow number * Point to work the same
-+        as Point * number."""
-+        return self.__mul__(factor)
-+
-     def __eq__(self, other):
-         if not isinstance(other, Point) or len(self.args) != len(other.args):
-             return False
-@@ -278,11 +288,21 @@ def __mul__(self, factor):
+@@ -278,6 +278,14 @@ def __mul__(self, factor):
          coords = [simplify(x*factor) for x in self.args]
          return Point(coords, evaluate=False)
  
 +    def __rmul__(self, factor):
-+        """Right-hand multiplication: allow number * Point to work the same
-+        as Point * number."""
++        """Reflected multiplication: ensure number * Point works.
++
++        This returns the same as Point.__mul__ so expressions like
++        sympify(2.0) * Point(1,1) produce a Point rather than a Mul.
++        """
 +        return self.__mul__(factor)
 +
      def __neg__(self):
          """Negate the point."""
          coords = [-x for x in self.args]
-         return Point(coords, evaluate=False)
- 
-+    def __rmul__(self, factor):
-+        """Right-hand multiplication: allow number * Point to work the same
-+        as Point * number."""
-+        return self.__mul__(factor)
-+
-     def __sub__(self, other):
-         """Subtract two points, or subtract a factor from this point's
-         coordinates."""

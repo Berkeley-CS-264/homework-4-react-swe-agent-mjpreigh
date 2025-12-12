@@ -1,21 +1,25 @@
-diff --git a/requests/models.py b/requests/models.py
-index cd232e6..bcc580a 100644
---- a/requests/models.py
-+++ b/requests/models.py
-@@ -391,7 +391,15 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
-         """Prepares the given HTTP headers."""
+diff --git a/requests/sessions.py b/requests/sessions.py
+index a023e4e..e8cbf95 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -54,11 +54,19 @@ def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
+     merged_setting = dict_class(to_key_val_list(session_setting))
+     merged_setting.update(to_key_val_list(request_setting))
  
-         if headers:
--            self.headers = CaseInsensitiveDict((to_native_string(name), value) for name, value in headers.items())
-+            # Filter out headers explicitly set to None. This allows users
-+            # to remove default session headers by setting them to None
-+            # (e.g. session.headers['Accept-Encoding'] = None) rather than
-+            # having the literal "None" string sent.
-+            self.headers = CaseInsensitiveDict(
-+                (to_native_string(name), value)
-+                for name, value in headers.items()
-+                if value is not None
-+            )
-         else:
-             self.headers = CaseInsensitiveDict()
+-    # Remove keys that are set to None.
++    # Remove keys that are set to None on the request (explicitly disabled).
+     for (k, v) in request_setting.items():
+         if v is None:
+             del merged_setting[k]
+ 
++    # Remove keys that are set to None on the session. This allows users to
++    # disable a session-level default header by setting it to None, e.g.:
++    #   session.headers['Accept-Encoding'] = None
++    # but if the request explicitly provides a value for the header, honor it.
++    for (k, v) in session_setting.items():
++        if v is None and k not in request_setting:
++            merged_setting.pop(k, None)
++
+     return merged_setting
+ 
  

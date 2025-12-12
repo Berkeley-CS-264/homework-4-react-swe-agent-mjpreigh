@@ -1,0 +1,113 @@
+2025-12-12 14:38:16,805 - INFO - Creating container for astropy__astropy-7166...
+2025-12-12 14:38:16,864 - INFO - Container for astropy__astropy-7166 created: 291b176c2497b9e28d88207ee8f54319805f165073999213e2cae0df358e08e7
+2025-12-12 14:38:16,987 - INFO - Container for astropy__astropy-7166 started: 291b176c2497b9e28d88207ee8f54319805f165073999213e2cae0df358e08e7
+2025-12-12 14:38:16,988 - INFO - Intermediate patch for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/patch.diff, now applying to container...
+2025-12-12 14:38:17,161 - INFO - >>>>> Applied Patch:
+Checking patch astropy/utils/misc.py...
+Applied patch astropy/utils/misc.py cleanly.
+
+2025-12-12 14:38:17,698 - INFO - Git diff before:
+diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
+index de3fb01d1..b8221de72 100644
+--- a/astropy/utils/misc.py
++++ b/astropy/utils/misc.py
+@@ -528,15 +528,39 @@ class InheritDocstrings(type):
+                 not key.startswith('_'))
+ 
+         for key, val in dct.items():
+-            if (inspect.isfunction(val) and
+-                is_public_member(key) and
+-                val.__doc__ is None):
++            # Determine the underlying callable/descriptor whose __doc__ we may
++            # want to inherit. This supports plain functions as well as
++            # classmethod, staticmethod and property descriptors.
++            target = None
++            if inspect.isfunction(val):
++                target = val
++            elif isinstance(val, (classmethod, staticmethod)):
++                target = val.__func__
++            elif isinstance(val, property):
++                # Prefer the getter for docstrings, fall back to setter if needed
++                target = val.fget or val.fset
++
++            if target is not None and is_public_member(key) and target.__doc__ is None:
+                 for base in cls.__mro__[1:]:
+                     super_method = getattr(base, key, None)
+-                    if super_method is not None:
+-                        val.__doc__ = super_method.__doc__
++                    if super_method is None:
++                        continue
++                    # Extract docstring from the superclass attribute, handling
++                    # classmethod/staticmethod/property wrappers.
++                    if isinstance(super_method, (classmethod, staticmethod)):
++                        super_doc = super_method.__func__.__doc__
++                    elif isinstance(super_method, property):
++                        super_doc = (super_method.fget.__doc__ if super_method.fget is not None
++                                     else super_method.fset.__doc__ if super_method.fset is not None
++                                     else super_method.__doc__)
++                    else:
++                        super_doc = getattr(super_method, '__doc__', None)
++
++                    if super_doc:
++                        target.__doc__ = super_doc
+                         break
+ 
++
+         super().__init__(name, bases, dct)
+2025-12-12 14:38:17,698 - INFO - Eval script for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/eval.sh; copying to container...
+2025-12-12 14:38:23,452 - INFO - Test runtime: 5.69 seconds
+2025-12-12 14:38:23,452 - INFO - Test output for astropy__astropy-7166 written to logs/run_evaluation/my_evaluation_run/gpt-5-mini/astropy__astropy-7166/test_output.txt
+2025-12-12 14:38:23,584 - INFO - Git diff after:
+diff --git a/astropy/utils/misc.py b/astropy/utils/misc.py
+index de3fb01d1..b8221de72 100644
+--- a/astropy/utils/misc.py
++++ b/astropy/utils/misc.py
+@@ -528,15 +528,39 @@ class InheritDocstrings(type):
+                 not key.startswith('_'))
+ 
+         for key, val in dct.items():
+-            if (inspect.isfunction(val) and
+-                is_public_member(key) and
+-                val.__doc__ is None):
++            # Determine the underlying callable/descriptor whose __doc__ we may
++            # want to inherit. This supports plain functions as well as
++            # classmethod, staticmethod and property descriptors.
++            target = None
++            if inspect.isfunction(val):
++                target = val
++            elif isinstance(val, (classmethod, staticmethod)):
++                target = val.__func__
++            elif isinstance(val, property):
++                # Prefer the getter for docstrings, fall back to setter if needed
++                target = val.fget or val.fset
++
++            if target is not None and is_public_member(key) and target.__doc__ is None:
+                 for base in cls.__mro__[1:]:
+                     super_method = getattr(base, key, None)
+-                    if super_method is not None:
+-                        val.__doc__ = super_method.__doc__
++                    if super_method is None:
++                        continue
++                    # Extract docstring from the superclass attribute, handling
++                    # classmethod/staticmethod/property wrappers.
++                    if isinstance(super_method, (classmethod, staticmethod)):
++                        super_doc = super_method.__func__.__doc__
++                    elif isinstance(super_method, property):
++                        super_doc = (super_method.fget.__doc__ if super_method.fget is not None
++                                     else super_method.fset.__doc__ if super_method.fset is not None
++                                     else super_method.__doc__)
++                    else:
++                        super_doc = getattr(super_method, '__doc__', None)
++
++                    if super_doc:
++                        target.__doc__ = super_doc
+                         break
+ 
++
+         super().__init__(name, bases, dct)
+2025-12-12 14:38:23,584 - INFO - Grading answer for astropy__astropy-7166...
+2025-12-12 14:38:23,586 - INFO - report: {'astropy__astropy-7166': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/utils/tests/test_misc.py::test_inherit_docstrings']}, 'PASS_TO_PASS': {'success': ['astropy/utils/tests/test_misc.py::test_isiterable', 'astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure', 'astropy/utils/tests/test_misc.py::test_skip_hidden', 'astropy/utils/tests/test_misc.py::test_JsonCustomEncoder', 'astropy/utils/tests/test_misc.py::test_check_broadcast', 'astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for astropy__astropy-7166: resolved: False
+2025-12-12 14:38:23,587 - INFO - Attempting to stop container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-12 14:38:38,713 - INFO - Attempting to remove container sweb.eval.astropy__astropy-7166.my_evaluation_run...
+2025-12-12 14:38:38,728 - INFO - Container sweb.eval.astropy__astropy-7166.my_evaluation_run removed.

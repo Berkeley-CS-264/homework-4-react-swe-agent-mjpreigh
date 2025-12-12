@@ -1,71 +1,36 @@
-*** Begin Patch
-*** Update File: sphinx/util/typing.py
-@@
-     elif cls.__module__ in ('__builtin__', 'builtins'):
-@@
-             else:
-                 return _restify_py36(cls)
-     except (AttributeError, TypeError):
-         return repr(cls)
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index a255c0691..e59913839 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1664,7 +1664,30 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
+             self.env.events.emit('autodoc-process-bases',
+                                  self.fullname, self.object, self.options, bases)
  
-@@
-     elif isinstance(cls, typing._SpecialForm):
-         return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
-     elif hasattr(cls, '__qualname__'):
-         if cls.__module__ == 'typing':
-             return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-         else:
-             return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
-     elif isinstance(cls, ForwardRef):
-         return ':py:class:`%s`' % cls.__forward_arg__
-     else:
-         # not a class (ex. TypeVar)
-         if cls.__module__ == 'typing':
-             return ':py:obj:`~%s.%s`' % (cls.__module__, cls.__name__)
-         else:
--            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-+            # Defensive fallback: some mocked or proxy objects may lack
-+            # __qualname__ but still provide a useful __module__ and some
-+            # form of name. Avoid producing outputs like "torch.nn." by
-+            # trying to recover a reasonable name.
-+            mod = getattr(cls, '__module__', None) or ''
-+            name = getattr(cls, '__name__', None)
-+            if not name:
-+                # try the class name of the object (e.g., Mock/MagicMock)
+-            base_classes = [restify(cls) for cls in bases]
++            # Format base classes. restify() does most of the work, but in some
++            # cases (e.g. mocked/import-mocked classes) restify() may produce
++            # a trailing module path like "torch.nn." without the class name.
++            # Post-process those results to try to recover the class name from
++            # the original object, falling back to object_description().
++            base_classes = []
++            for cls in bases:
 +                try:
-+                    name = getattr(cls, '__class__', None)
++                    sname = restify(cls)
++                except Exception:
++                    # If restify fails for some exotic object, use a safe fallback.
++                    sname = object_description(cls)
++
++                # If restify produced a trailing dot (module but no name),
++                # try to recover the name from the object.
++                if isinstance(sname, str) and sname.rstrip().endswith('.'):
++                    name = safe_getattr(cls, '__name__', None) or safe_getattr(cls, '__qualname__', None)
 +                    if name:
-+                        name = getattr(name, '__name__', None)
-+                except Exception:
-+                    name = None
-+            if not name:
-+                # last resort: try to parse from repr() (may yield e.g.
-+                # "<class 'torch.nn.Module'>", or "<MagicMock name='Module' id='...'>")
-+                try:
-+                    r = repr(cls)
-+                    # simple heuristic: take last word after dot or quote
-+                    if r:
-+                        # look for patterns like "torch.nn.Module" in repr
-+                        import re as _re
-+                        m = _re.search(r"([A-Za-z_][\w.]+)\.?([A-Za-z_]\w+)?", r)
-+                        if m:
-+                            # prefer the last group if present
-+                            cand = m.group(2) or m.group(1)
-+                            # if cand contains dots, split to get last segment
-+                            if '.' in cand:
-+                                cand = cand.split('.')[-1]
-+                            name = cand
-+                except Exception:
-+                    name = None
-+            if name:
-+                mod = mod.rstrip('.')
-+                if mod:
-+                    return ':py:class:`%s.%s`' % (mod, name)
-+                else:
-+                    return ':py:class:`%s`' % name
-+            # fallback to original behavior if nothing useful found
-+            return ':py:obj:`%s.%s`' % (cls.__module__, cls.__name__)
-*** End Patch
-----END_FUNCTION_CALL****
-
-No changes detected to generate a patch.
++                        sname = sname + name
++                    else:
++                        # last resort: a readable description of the object
++                        sname = object_description(cls)
++
++                base_classes.append(sname)
+             sourcename = self.get_sourcename()
+             self.add_line('', sourcename)
+             self.add_line('   ' + _('Bases: %s') % ', '.join(base_classes), sourcename)

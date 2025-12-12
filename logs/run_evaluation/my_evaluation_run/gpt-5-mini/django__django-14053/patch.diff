@@ -1,49 +1,37 @@
 diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
-index 494890cc23..caa868ad9c 100644
+index 494890cc23..138edc104a 100644
 --- a/django/contrib/staticfiles/storage.py
 +++ b/django/contrib/staticfiles/storage.py
-@@ -226,17 +226,30 @@ class HashedFilesMixin:
+@@ -226,17 +226,29 @@ class HashedFilesMixin:
              path for path in paths
              if matches_patterns(path, self._patterns)
          ]
 +
-+        # Collect results per original name so we only yield each original name once.
-+        results = {}
++        # Keep track of names we've already yielded so we don't report the same
++        # original file multiple times across multiple passes.
++        yielded = set()
 +
          # Do a single pass first. Post-process all files once, then repeat for
 -        # adjustable files.
-+        # adjustable files. Exceptions must be propagated immediately.
++        # adjustable files. Only yield a file the first time it's actually
++        # post-processed (or if an exception occurred).
          for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
 -            yield name, hashed_name, processed
-+            if isinstance(processed, Exception):
-+                # Propagate exception immediately, as before.
-+                yield name, None, processed
-+                return
-+            results[name] = (hashed_name, processed)
++            if isinstance(processed, Exception) or processed:
++                if name not in yielded:
++                    yield name, hashed_name, processed
++                    yielded.add(name)
  
          paths = {path: paths[path] for path in adjustable_paths}
  
-+        substitutions = False
          for i in range(self.max_post_process_passes):
              substitutions = False
              for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
 -                yield name, hashed_name, processed
-+                if isinstance(processed, Exception):
-+                    yield name, None, processed
-+                    return
-+                # Update the result for this name with the latest values.
-+                results[name] = (hashed_name, processed)
++                if isinstance(processed, Exception) or processed:
++                    if name not in yielded:
++                        yield name, hashed_name, processed
++                        yielded.add(name)
                  substitutions = substitutions or subst
  
              if not substitutions:
-@@ -248,6 +261,10 @@ class HashedFilesMixin:
-         # Store the processed paths
-         self.hashed_files.update(hashed_files)
- 
-+        # Yield each original name only once with the final processed state.
-+        for name, (hashed_name, processed) in results.items():
-+            yield name, hashed_name, processed
-+
-     def _post_process(self, paths, adjustable_paths, hashed_files):
-         # Sort the files by directory level
-         def path_level(name):

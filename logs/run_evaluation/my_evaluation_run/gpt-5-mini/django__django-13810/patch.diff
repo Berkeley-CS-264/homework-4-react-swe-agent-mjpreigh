@@ -1,5 +1,5 @@
 diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
-index 8e8c3da06a..e811edbcb1 100644
+index 8e8c3da06a..905ca73d5b 100644
 --- a/django/core/handlers/base.py
 +++ b/django/core/handlers/base.py
 @@ -50,12 +50,14 @@ class BaseHandler:
@@ -8,9 +8,9 @@ index 8e8c3da06a..e811edbcb1 100644
              try:
 -                # Adapt handler, if needed.
 -                handler = self.adapt_method_mode(
-+                # Adapt handler, if needed. Use a local adapted_handler so that
-+                # if the middleware factory raises MiddlewareNotUsed we don't
-+                # mutate the current handler and its async/sync mode.
++                # Adapt handler, if needed. Use a temporary variable so that if
++                # the middleware factory raises MiddlewareNotUsed we don't
++                # "poison" the handler variable with an adapted callable.
 +                adapted_handler = self.adapt_method_mode(
                      middleware_is_async, handler, handler_is_async,
                      debug=settings.DEBUG, name='middleware %s' % middleware_path,

@@ -1,0 +1,15 @@
+diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
+index 3a3367ebe..c6822b7d1 100644
+--- a/sphinx/util/docfields.py
++++ b/sphinx/util/docfields.py
+@@ -298,7 +298,9 @@ class DocFieldTransformer:
+             # also support syntax like ``:param type name:``
+             if typedesc.is_typed:
+                 try:
+-                    argtype, argname = fieldarg.split(None, 1)
++                    # split on the last whitespace so types containing spaces
++                    # (e.g. "dict(str, str)") are not broken up
++                    argtype, argname = fieldarg.rsplit(None, 1)
+                 except ValueError:
+                     pass
+                 else:

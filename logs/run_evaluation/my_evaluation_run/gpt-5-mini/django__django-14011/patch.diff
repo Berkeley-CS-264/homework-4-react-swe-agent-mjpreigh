@@ -1,27 +1,13 @@
 diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py
-index 14dab517c9..e7c9fa5c6e 100644
+index 14dab517c9..6758440afd 100644
 --- a/django/core/servers/basehttp.py
 +++ b/django/core/servers/basehttp.py
-@@ -17,6 +17,7 @@ from django.core.exceptions import ImproperlyConfigured
- from django.core.handlers.wsgi import LimitedStream
- from django.core.wsgi import get_wsgi_application
- from django.utils.module_loading import import_string
-+from django.db import connections
+@@ -79,7 +79,7 @@ class WSGIServer(simple_server.WSGIServer):
  
- __all__ = ('WSGIServer', 'WSGIRequestHandler')
- 
-@@ -115,6 +116,14 @@ class ServerHandler(simple_server.ServerHandler):
- 
-     def close(self):
-         self.get_stdin()._read_limited()
-+        # Close any Django DB connections used by this request thread. This
-+        # makes sure worker threads don't hold open DB resources after the
-+        # request is complete, avoiding races on test DB teardown.
-+        try:
-+            connections.close_all()
-+        except Exception:
-+            # Be defensive: don't let DB cleanup issues break request handling.
-+            pass
-         super().close()
+ class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
+     """A threaded version of the WSGIServer"""
+-    daemon_threads = True
++    daemon_threads = False
  
  
+ class ServerHandler(simple_server.ServerHandler):

@@ -146,22 +146,23 @@ Date:   Wed Sep 10 13:36:40 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff 0eb3e9bd754e4c9fac8b616b705178727fc8031e
 diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
-index a59f0c8dcb..c643feca1d 100644
+index a59f0c8dcb..ff0ede5f93 100644
 --- a/django/db/migrations/writer.py
 +++ b/django/db/migrations/writer.py
-@@ -173,9 +173,13 @@ class MigrationWriter:
-         else:
-             imports.add("from django.db import migrations")
+@@ -175,7 +175,15 @@ class MigrationWriter:
  
--        # Sort imports by the package / module to be imported (the part after
-+        # Place plain module imports before "from ... import ..." lines, and
-+        # sort within those groups by the package/module name (the part after
+         # Sort imports by the package / module to be imported (the part after
          # "from" in "from ... import ..." or after "import" in "import ...").
 -        sorted_imports = sorted(imports, key=lambda i: i.split()[1])
-+        sorted_imports = sorted(
-+            imports,
-+            key=lambda i: (0 if i.startswith("import ") else 1, i.split()[1]),
++        # Place all "import module" statements before "from module import ..."
++        # statements in the generated file (PEP8 / isort style).
++        module_imports = sorted(
++            (i for i in imports if i.startswith("import ")), key=lambda i: i.split()[1]
 +        )
++        from_imports = sorted(
++            (i for i in imports if i.startswith("from ")), key=lambda i: i.split()[1]
++        )
++        sorted_imports = module_imports + from_imports
          items["imports"] = "\n".join(sorted_imports) + "\n" if imports else ""
          if migration_imports:
              items["imports"] += (
@@ -304,8 +305,8 @@ Requirement already satisfied: sqlparse>=0.3.1 in /opt/miniconda3/envs/testbed/l
 Building wheels for collected packages: Django
   Building editable for Django (pyproject.toml): started
   Building editable for Django (pyproject.toml): finished with status 'done'
-  Created wheel for Django: filename=django-5.0.dev20250910133640-0.editable-py3-none-any.whl size=27435 sha256=e50774da2e3dd3431600d9f3fce3d03a9503a62f1ab33ea2aac569f98dcbc142
-  Stored in directory: /tmp/pip-ephem-wheel-cache-fk0hcw3o/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+  Created wheel for Django: filename=django-5.0.dev20250910133640-0.editable-py3-none-any.whl size=27435 sha256=d066d16268bb35dd1585fdec87c490b04674710fb3c23db6382116f07bc09af4
+  Stored in directory: /tmp/pip-ephem-wheel-cache-3tvvaxb2/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
 Successfully built Django
 Installing collected packages: Django
   Attempting uninstall: Django
@@ -389,7 +390,7 @@ test_sorted_imports (migrations.test_writer.WriterTests.test_sorted_imports)
 #24155 - Tests ordering of imports. ... ok
 
 ----------------------------------------------------------------------
-Ran 52 tests in 0.017s
+Ran 52 tests in 0.019s
 
 OK
 + : '>>>>> End Test Output'

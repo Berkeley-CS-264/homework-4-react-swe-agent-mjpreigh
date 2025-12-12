@@ -184,7 +184,7 @@ class ReactAgent:
             tool_descriptions = "\n".join(tool_descriptions)
             return (
                 f"{header}{content}\n"
-                f"--- IMPORTANT NOTE ---\nIf you have a patch, return it instead of app.\n"
+                f"--- IMPORTANT NOTE ---\nIf you have a patch, return it instead of app. Your task is very important and high stakes. The programs you are patching are highly essential, so it is crucial that your patches provide accuracy. When analyzing the repository, optimize performance by starting with fast, high-signal checks to identify a small set of candidate files likely to require modification. Only gather deeper context for those candidates, such as their structure, recent change history, and import patterns. After determining the specific file and the minimal code block that needs to be updated, apply targeted edits and generate a minimal, clean patch. Validate your changes with quick syntax and import checks before finalizing. Always aim for the smallest safe diff possible and avoid unnecessary full-repository scans to keep analysis efficient. Be sure to utilize the available tools. BEGIN BY CONSIDERING: WHAT BASH COMMANDS WILL GIVE A CODING AGENT THE BEST CONTEXT ABOUT A REPOSITORY? RUN THOSE COMMANDS.\n"
                 f"--- AVAILABLE TOOLS ---\n{tool_descriptions}\n\n"
                 f"--- RESPONSE FORMAT ---\n{self.parser.response_format}\n"
             )

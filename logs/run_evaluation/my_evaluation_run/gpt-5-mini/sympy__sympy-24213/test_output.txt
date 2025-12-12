@@ -146,15 +146,20 @@ Date:   Wed Sep 10 16:54:54 2025 +0000
     SWE-bench
 + git -c core.fileMode=false diff e8c22f6eac7314be8d92590bfff92ced79ee03e2
 diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
-index a436880c4b..5705c821c2 100644
+index a436880c4b..e0c8e9eed5 100644
 --- a/sympy/physics/units/unitsystem.py
 +++ b/sympy/physics/units/unitsystem.py
-@@ -175,7 +175,7 @@ def _collect_factor_and_dimension(self, expr):
+@@ -175,7 +175,12 @@ def _collect_factor_and_dimension(self, expr):
              for addend in expr.args[1:]:
                  addend_factor, addend_dim = \
                      self._collect_factor_and_dimension(addend)
 -                if dim != addend_dim:
-+                if not self.get_dimension_system().equivalent_dims(dim, addend_dim):
++                # Use the dimension system's equivalence check so that
++                # semantically equivalent dimensions (for example
++                # acceleration*time and velocity) are accepted when adding.
++                dimsys = self.get_dimension_system()
++                equivalent = (dim == addend_dim) or dimsys.equivalent_dims(dim, addend_dim)
++                if not equivalent:
                      raise ValueError(
                          'Dimension of "{}" is {}, '
                          'but it should be {}'.format(
@@ -310,8 +315,8 @@ architecture:       64-bit
 cache:              no
 ground types:       python 
 numpy:              None
-random seed:        50421080
-hash randomization: on (PYTHONHASHSEED=3627679392)
+random seed:        28013865
+hash randomization: on (PYTHONHASHSEED=3155012812)
 
 sympy/physics/units/tests/test_quantities.py[34] 
 test_str_repr ok
@@ -350,7 +355,7 @@ test_prefixed_property ok
 test_physics_constant ok                                                    [OK]
 
 
-======== tests finished: 33 passed, 1 expected to fail, in 1.28 seconds ========
+======== tests finished: 33 passed, 1 expected to fail, in 1.08 seconds ========
 + : '>>>>> End Test Output'
 + git checkout e8c22f6eac7314be8d92590bfff92ced79ee03e2 sympy/physics/units/tests/test_quantities.py
 Updated 1 path from b86b9b19fd
